@@ -835,7 +835,7 @@ test fund_fail_if_lender_address_is_none_in_output_datum() {
 
   let datum_output = Datum {
     borrower,
-    lender: None, 
+    lender: None,
     principal,
     interest_rate: 10,
     loan_duration,
@@ -872,8 +872,6 @@ test fund_fail_if_lender_address_is_none_in_output_datum() {
         },
       )
 
- 
-  
   !crowdlend.crowdlend.spend(Some(datum_input), redeemer, output_reference, tx)
 }
 
