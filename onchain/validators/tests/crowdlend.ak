@@ -929,6 +929,7 @@ test repay_success_before_due_date_with_full_interest() {
     |> tx_out(True, borrower_addr, collateral)
     |> required_signer_hash(True, borrower_pkh)
     |> invalid_before(True, current_time)
+    |> invalid_hereafter(True, current_time + 100)
     |> complete()
     |> add_input(
         True,
@@ -937,7 +938,6 @@ test repay_success_before_due_date_with_full_interest() {
           output: mock_script_output(
             script_address,
             collateral |> add("", "", principal),
-            // Script UTxO đang chứa NFT + Tiền gốc giải ngân từ Lender
             InlineDatum(Some(loan_datum)),
           ),
         },
@@ -998,6 +998,7 @@ test repay_success_exactly_at_due_date() {
     |> tx_out(True, borrower_addr, collateral)
     |> required_signer_hash(True, borrower_pkh)
     |> invalid_before(True, ultimate_valid_slot)
+    |> invalid_hereafter(True, due_date + 1)
     |> complete()
     |> add_input(
          True,
@@ -1066,6 +1067,7 @@ test repay_success_returns_exact_collateral_to_borrower() {
     |> tx_out(True, borrower_addr, exact_collateral)
     |> required_signer_hash(True, borrower_pkh)
     |> invalid_before(True, current_time)
+    |> invalid_hereafter(True, 1200)
     |> complete()
     |> add_input(
          True,
@@ -1546,8 +1548,58 @@ test repay_fail_if_borrower_signature_is_missing() {
   !crowdlend.crowdlend.spend(Some(loan_datum), Repay, utxo_ref, tx)
 }
 
-// test cancel_success_when_status_is_pending_and_signed_by_borrower
-// (Hủy thành công khi khoản vay đang Pending và chính chủ borrower ký lệnh)
+test cancel_success_when_status_is_pending_and_signed_by_borrower() {
+  // =========================================================================
+  // GIVEN:
+  //   - A loan request in 'Pending' status.
+  //   - Borrower has already locked their NFT in the script.
+  // WHEN:
+  //   - The borrower signs and submits a 'Cancel' transaction.
+  // THEN:
+  //   - The validator confirms the signature and releases the NFT to the borrower.
+  // =========================================================================
+  let borrower_pkh = mock_pub_key_hash(0)
+  let borrower_addr = mock_pub_key_address(0, None)
+
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: None,
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: None,
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending, // Trạng thái cho phép hủy
+  }
+
+  let tx: Transaction = mocktail_tx()
+    // Trả lại NFT cho người vay
+    |> tx_out(True, borrower_addr, collateral)
+    |> required_signer_hash(True, borrower_pkh)
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
+}
 
 // test cancel_success_refunds_collateral_to_borrower_completely
 // (Hủy thành công và trả lại nguyên vẹn tài sản thế chấp về ví người vay)
@@ -1605,3 +1657,4 @@ test repay_fail_if_borrower_signature_is_missing() {
 
 // test liquidate_success_at_exact_next_slot_after_due_date
 // (Thanh lý thành công ngay tại slot thời gian kế tiếp liền kề sau thời điểm hết hạn)
+

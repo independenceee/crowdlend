@@ -91,9 +91,16 @@ validator crowdlend {
             datum_input.lender,
             datum_input.due_date,
             validity_range.lower_bound.bound_type,
+            validity_range.upper_bound.bound_type,
           )
         is {
-          (Active { .. }, Some(lender), Some(due_date), Finite(lower_bound)) -> {
+          (
+            Active { .. },
+            Some(lender),
+            Some(due_date),
+            Finite(lower_bound),
+            Finite(upper_bound),
+          ) -> {
             let interest = datum_input.principal * datum_input.interest_rate / 10000
             let total_repayment = datum_input.principal + interest
             let actual_lender_output = output_by_addr(outputs, lender)
@@ -117,6 +124,7 @@ validator crowdlend {
               verify_signature(extra_signatories, borrower_pkh),
               lower_bound < due_date,
               lender_paid_enough,
+              upper_bound > lower_bound,
               borrower_received_collateral,
             }
           }
