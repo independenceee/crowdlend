@@ -139,7 +139,28 @@ validator crowdlend {
           _ -> False
         }
       }
-      Liquidate -> True
+      Liquidate -> {
+        when (datum_input.status, datum_input.lender, datum_input.due_date, validity_range.lower_bound.bound_type) is {
+          (Active { .. }, Some(lender_address), Some(due_date), Finite(lower_bound)) -> {
+            expect VerificationKey(lender_pkh) = lender_address.payment_credential
+
+            let actual_lender_output = output_by_addr(outputs, lender_address)
+
+            let lender_received_collateral = quantity_of(
+              actual_lender_output.value,
+              datum_input.collateral_policy_id,
+              datum_input.collateral_asset_name
+            ) >= 1
+
+            and {
+              verify_signature(extra_signatories, lender_pkh),
+              lower_bound > due_date,
+              lender_received_collateral,
+            }
+          }
+          _ -> False
+        }
+      }
     }
   }
 
