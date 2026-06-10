@@ -110,7 +110,6 @@ validator crowdlend {
               verify_signature(extra_signatories, borrower_pkh),
               lower_bound < due_date,
               lender_paid_enough,
-
               borrower_received_collateral,
             }
           }
@@ -118,7 +117,28 @@ validator crowdlend {
         }
       }
       
-      Cancel -> True
+      Cancel -> {
+        let borrower_address = datum_input.borrower
+        expect VerificationKey(borrower_pkh) = borrower_address.payment_credential
+
+        when datum_input.status is {
+          Pending -> {
+            let actual_borrower_output = output_by_addr(outputs, datum_input.borrower)
+
+            let borrower_received_collateral = quantity_of(
+              actual_borrower_output.value,
+              datum_input.collateral_policy_id,
+              datum_input.collateral_asset_name
+            ) >= 1
+
+            and {
+              verify_signature(extra_signatories, borrower_pkh),
+              borrower_received_collateral,
+            }
+          }
+          _ -> False
+        }
+      }
       Liquidate -> True
     }
   }
