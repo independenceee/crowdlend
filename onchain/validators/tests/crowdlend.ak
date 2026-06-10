@@ -522,8 +522,90 @@ test fund_fail_if_collateral_token_is_missing_or_wrong_quantity() {
   !crowdlend.crowdlend.spend(Some(datum_input), redeemer, output_reference, tx)
 }
 
-// test fund_fail_if_loan_terms_altered_in_output_datum
-// (Thất bại nếu lender gian lận, tự ý sửa lãi suất hoặc thời hạn vay trong datum mới)
+test fund_fail_if_loan_terms_altered_in_output_datum() {
+  // =========================================================================
+  // TEST SCENARIO: Funding must fail if the lender attempts to modify core
+  //                loan terms (like interest rate) inside the output datum.
+  //
+  // GIVEN (Context):
+  //   - A pending loan request specifying an agreement of a 10% interest rate.
+  //
+  // WHEN (Action):
+  //   - A lender resolves the 'Fund' redeemer but crafts a malicious output
+  //     datum modifying the 'interest_rate' field to 50%.
+  //
+  // THEN (Expected Result):
+  //   - The validator detects that the output contract parameters do not match
+  //     the input criteria, forcing an immediate panic (marked with @must_fail to PASS).
+  // =========================================================================
+  let redeemer: Redeemer = Fund
+
+  let borrower: Address = mock_pub_key_address(0, None)
+  let lender: Address = mock_pub_key_address(1, None)
+  let principal: Int = 1_000_000_000
+  let loan_duration: Int = 1000
+  let policy_id: PolicyId = mock_policy_id(0)
+  let asset_name: AssetName = "Hydra Course 2026"
+
+  let script_address: Address = mock_script_address(0, None)
+  let output_reference: OutputReference = mock_utxo_ref(0, 0)
+
+  let datum_input = Datum {
+    borrower,
+    lender: None,
+    principal,
+    interest_rate: 10, 
+    loan_duration,
+    due_duration: 200,
+    due_date: None,
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending,
+  }
+
+  let current_time = 500
+  let expected_due = current_time + loan_duration
+
+  let datum_output = Datum {
+    borrower,
+    lender: Some(lender),
+    principal,
+    interest_rate: 50, 
+    loan_duration,
+    due_duration: 200,
+    due_date: Some(expected_due),
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: current_time },
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(
+        True,
+        script_address,
+        from_asset(policy_id, asset_name, 1)
+          |> add("", "", principal),
+      )
+    |> tx_out_inline_datum(True, datum_output)
+    |> required_signer_hash(True, mock_pub_key_hash(1))
+    |> invalid_before(True, current_time)
+    |> invalid_hereafter(True, current_time + 10)
+    |> complete()
+    |> add_input(
+        True,
+        Input {
+          output_reference,
+          output: mock_script_output(
+            script_address,
+            from_asset(policy_id, asset_name, 1)
+              |> add("", "", principal),
+            InlineDatum(Some(datum_input)),
+          ),
+        },
+      )
+
+  !crowdlend.crowdlend.spend(Some(datum_input), redeemer, output_reference, tx)
+}
 
 // test fund_fail_if_validity_range_has_no_lower_bound
 // (Thất bại nếu transaction không khai báo thời gian bắt đầu, khiến script không có mốc tính due_date)
