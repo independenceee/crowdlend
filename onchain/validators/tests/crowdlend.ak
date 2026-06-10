@@ -437,8 +437,90 @@ test fund_fail_if_output_lovelace_is_less_than_principal() {
   !crowdlend.crowdlend.spend(Some(datum_input), redeemer, output_reference, tx)
 }
 
-// test fund_fail_if_collateral_token_is_missing_or_wrong_quantity
-// (Thất bại nếu trong ví UTxO mới bị rút bớt hoặc mất đi token thế chấp)
+test fund_fail_if_collateral_token_is_missing_or_wrong_quantity() {
+  // =========================================================================
+  // TEST SCENARIO: Funding must fail if the collateral asset is missing 
+  //                or has an incorrect quantity in the output script UTxO.
+  //
+  // GIVEN (Context):
+  //   - A pending loan request that locks exactly 1 Collateral NFT ("Hydra Course 2026").
+  //
+  // WHEN (Action):
+  //   - A lender deposits the correct 1,000,000,000 Lovelaces (1000 ADA) principal,
+  //     but intentionally alters the collateral token quantity to 0 (omits it) 
+  //     in the continuing script output.
+  //
+  // THEN (Expected Result):
+  //   - The validator's asset matching logic (`value_has_at_least`) resolves to false,
+  //     causing the contract to crash and reject the exploit (marked with @must_fail to PASS).
+  // =========================================================================
+  let redeemer: Redeemer = Fund
+
+  let borrower: Address = mock_pub_key_address(0, None)
+  let lender: Address = mock_pub_key_address(1, None)
+  let principal: Int = 1_000_000_000
+  let loan_duration: Int = 1000
+  let policy_id: PolicyId = mock_policy_id(0)
+  let asset_name: AssetName = "Hydra Course 2026"
+
+  let script_address: Address = mock_script_address(0, None)
+  let output_reference: OutputReference = mock_utxo_ref(0, 0)
+
+  let datum_input = Datum {
+    borrower,
+    lender: None,
+    principal,
+    interest_rate: 10,
+    loan_duration,
+    due_duration: 200,
+    due_date: None,
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending,
+  }
+
+  let current_time = 500
+  let expected_due = current_time + loan_duration
+  let datum_output = Datum {
+    borrower,
+    lender: Some(lender),
+    principal,
+    interest_rate: 10,
+    loan_duration,
+    due_duration: 200,
+    due_date: Some(expected_due),
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: current_time },
+  }
+
+  let malicious_output_value = from_lovelace(principal) 
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(
+        True,
+        script_address,
+        malicious_output_value, 
+      )
+    |> tx_out_inline_datum(True, datum_output)
+    |> required_signer_hash(True, mock_pub_key_hash(1))
+    |> invalid_before(True, current_time)
+    |> invalid_hereafter(True, current_time + 10)
+    |> complete()
+    |> add_input(
+        True,
+        Input {
+          output_reference,
+          output: mock_script_output(
+            script_address,
+            from_asset(policy_id, asset_name, 1) |> add("", "", principal),
+            InlineDatum(Some(datum_input)),
+          ),
+        },
+      )
+
+  !crowdlend.crowdlend.spend(Some(datum_input), redeemer, output_reference, tx)
+}
 
 // test fund_fail_if_loan_terms_altered_in_output_datum
 // (Thất bại nếu lender gian lận, tự ý sửa lãi suất hoặc thời hạn vay trong datum mới)
