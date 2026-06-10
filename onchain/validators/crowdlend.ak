@@ -2,16 +2,13 @@ use aiken/collection/list
 use aiken/interval.{Finite}
 use cardano/address.{VerificationKey}
 use cardano/assets.{
-  AssetName, PolicyId, Value, flatten, from_asset, from_lovelace, merge,
-  quantity_of, without_lovelace,
+  flatten, from_asset, from_lovelace, merge, quantity_of, without_lovelace,
 }
 use cardano/transaction.{
   InlineDatum, Output, OutputReference, Transaction, find_input,
 }
 use cardano/tx.{verify_signature}
-use types.{
-  Active, Cancel, Datum, Fund, Liquidate, Pending, Redeemer, Repay, Status,
-}
+use types.{Active, Cancel, Datum, Fund, Liquidate, Pending, Redeemer, Repay}
 use validation/find.{output_by_addr, output_by_addr_value}
 
 validator crowdlend {
@@ -27,14 +24,13 @@ validator crowdlend {
     let script_address = input.output.address
     let script_inputs_count = list.count(
       inputs,
-      fn(in) { in.output.address == script_address },
+      fn(input) { input.output.address == script_address },
     )
     let script_outputs_count = list.count(
       outputs,
-      fn(out) { out.address == script_address },
+      fn(output) { output.address == script_address },
     )
 
-    // Đưa biến token ra ngoài phạm vi 'when' để cả Fund và Repay đều dùng được
     let token = input.output.value |> without_lovelace()
 
     when redeemer is {
@@ -45,7 +41,6 @@ validator crowdlend {
         expect datum_output: Datum = datum_output_raw
         expect Some(lender_address) = datum_output.lender
         expect VerificationKey(lender_pkh) = lender_address.payment_credential
-        
         when validity_range.lower_bound.bound_type is {
           Finite(current_time) -> {
             let expected_due_date = current_time + datum_input.loan_duration
@@ -90,20 +85,32 @@ validator crowdlend {
         let borrower_address = datum_input.borrower
         expect VerificationKey(borrower_pkh) = borrower_address.payment_credential
 
-        when (datum_input.status, datum_input.lender, datum_input.due_date, validity_range.lower_bound.bound_type) is {
+        when
+          (
+            datum_input.status,
+            datum_input.lender,
+            datum_input.due_date,
+            validity_range.lower_bound.bound_type,
+          )
+        is {
           (Active { .. }, Some(lender), Some(due_date), Finite(lower_bound)) -> {
             let interest = datum_input.principal * datum_input.interest_rate / 10000
             let total_repayment = datum_input.principal + interest
-            
             let actual_lender_output = output_by_addr(outputs, lender)
-            let actual_borrower_output = output_by_addr(outputs, datum_input.borrower)
+            let actual_borrower_output = output_by_addr(
+              outputs,
+              datum_input.borrower,
+            )
 
-            let lender_paid_enough = quantity_of(actual_lender_output.value, "", "") >= total_repayment
-            
+            let lender_paid_enough = quantity_of(
+              actual_lender_output.value,
+              "",
+              "",
+            ) >= total_repayment
             let borrower_received_collateral = quantity_of(
               actual_borrower_output.value,
               datum_input.collateral_policy_id,
-              datum_input.collateral_asset_name
+              datum_input.collateral_asset_name,
             ) >= 1
 
             and {
@@ -116,19 +123,21 @@ validator crowdlend {
           _ -> False
         }
       }
-      
       Cancel -> {
         let borrower_address = datum_input.borrower
         expect VerificationKey(borrower_pkh) = borrower_address.payment_credential
 
         when datum_input.status is {
           Pending -> {
-            let actual_borrower_output = output_by_addr(outputs, datum_input.borrower)
+            let actual_borrower_output = output_by_addr(
+              outputs,
+              datum_input.borrower,
+            )
 
             let borrower_received_collateral = quantity_of(
               actual_borrower_output.value,
               datum_input.collateral_policy_id,
-              datum_input.collateral_asset_name
+              datum_input.collateral_asset_name,
             ) >= 1
 
             and {
@@ -139,9 +148,21 @@ validator crowdlend {
           _ -> False
         }
       }
-      Liquidate -> {
-        when (datum_input.status, datum_input.lender, datum_input.due_date, validity_range.lower_bound.bound_type) is {
-          (Active { .. }, Some(lender_address), Some(due_date), Finite(lower_bound)) -> {
+      Liquidate ->
+        when
+          (
+            datum_input.status,
+            datum_input.lender,
+            datum_input.due_date,
+            validity_range.lower_bound.bound_type,
+          )
+        is {
+          (
+            Active { .. },
+            Some(lender_address),
+            Some(due_date),
+            Finite(lower_bound),
+          ) -> {
             expect VerificationKey(lender_pkh) = lender_address.payment_credential
 
             let actual_lender_output = output_by_addr(outputs, lender_address)
@@ -149,7 +170,7 @@ validator crowdlend {
             let lender_received_collateral = quantity_of(
               actual_lender_output.value,
               datum_input.collateral_policy_id,
-              datum_input.collateral_asset_name
+              datum_input.collateral_asset_name,
             ) >= 1
 
             and {
@@ -160,7 +181,6 @@ validator crowdlend {
           }
           _ -> False
         }
-      }
     }
   }
 

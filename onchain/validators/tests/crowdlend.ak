@@ -875,14 +875,212 @@ test fund_fail_if_lender_address_is_none_in_output_datum() {
   !crowdlend.crowdlend.spend(Some(datum_input), redeemer, output_reference, tx)
 }
 
-// test repay_success_before_due_date_with_full_interest
-// (Trả nợ thành công trước hạn và chuyển đủ gốc + lãi cho lender)
+test repay_success_before_due_date_with_full_interest() {
+  // =========================================================================
+  // TEST SCENARIO: Repayment must succeed if executed before the due date 
+  //                and both principal and full interest are paid to the lender.
+  //
+  // GIVEN (Context):
+  //   - An active loan contract with a principal of 1,000,000,000 Lovelaces (1000 ADA)
+  //     and an interest rate of 10% (1000 / 10000).
+  //   - The maturity due_date is explicitly locked at slot 1500.
+  //
+  // WHEN (Action):
+  //   - The borrower signs and submits a repayment transaction at slot 1000 (before deadline).
+  //   - The transaction pays exactly 1,100,000,000 Lovelaces to the lender's address
+  //     and routes the 1 locked Collateral NFT back to the borrower's address.
+  //
+  // THEN (Expected Result):
+  //   - The validator approves the transaction, evaluation returns True.
+  // =========================================================================
+  let borrower_pkh = mock_pub_key_hash(0)
+  // let lender_pkh = mock_pub_key_hash(1)
+  let borrower_addr = mock_pub_key_address(0, None)
+  let lender_addr = mock_pub_key_address(1, None)
 
-// test repay_success_exactly_at_due_date
-// (Trả nợ vẫn thành công nếu mốc thời gian giao dịch chạm đúng ngày đáo hạn)
+  let principal = 1_000_000_000
+  let interest_rate = 1000
+  let total_repayment = 1_100_000_000
 
-// test repay_success_returns_exact_collateral_to_borrower
-// (Trả nợ thành công và giải phóng chính xác asset thế chấp về đúng ví borrower)
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: Some(lender_addr),
+    principal,
+    interest_rate,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: Some(1500),
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: 500 },
+  }
+
+  let current_time = 1000
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, lender_addr, from_lovelace(total_repayment))
+    |> tx_out(True, borrower_addr, collateral)
+    |> required_signer_hash(True, borrower_pkh)
+    |> invalid_before(True, current_time)
+    |> complete()
+    |> add_input(
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral |> add("", "", principal),
+            // Script UTxO đang chứa NFT + Tiền gốc giải ngân từ Lender
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
+
+  crowdlend.crowdlend.spend(Some(loan_datum), Repay, utxo_ref, tx)
+}
+
+test repay_success_exactly_at_due_date() {
+  // =========================================================================
+  // TEST SCENARIO: Repayment must succeed at the ultimate boundary slot 
+  //                right before the exact due date (last-second repayment).
+  //
+  // GIVEN (Context):
+  //   - An active loan contract where the deadline is set exactly at slot 1500.
+  //
+  // WHEN (Action):
+  //   - The borrower executes the transaction at slot 1499 (due_date - 1),
+  //     which is the exact upper boundary to satisfy `lower_bound < due_date`.
+  //   - All financial requirements (principal + full interest) are fully met.
+  //
+  // THEN (Expected Result):
+  //   - The validator evaluates the time window as valid and returns True.
+  // =========================================================================
+  let borrower_pkh = mock_pub_key_hash(0)
+  let borrower_addr = mock_pub_key_address(0, None)
+  let lender_addr = mock_pub_key_address(1, None)
+
+  let principal = 1_000_000_000
+  let interest_rate = 1000 
+  let total_repayment = 1_100_000_000 
+
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let due_date = 1500
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: Some(lender_addr),
+    principal,
+    interest_rate,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: Some(due_date), 
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: 500 },
+  }
+
+  let ultimate_valid_slot = due_date - 1 
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, lender_addr, from_lovelace(total_repayment))
+    |> tx_out(True, borrower_addr, collateral)
+    |> required_signer_hash(True, borrower_pkh)
+    |> invalid_before(True, ultimate_valid_slot)
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral |> add("", "", principal),
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  crowdlend.crowdlend.spend(Some(loan_datum), Repay, utxo_ref, tx)
+}
+
+test repay_success_returns_exact_collateral_to_borrower() {
+  // =========================================================================
+  // TEST SCENARIO: Repayment must succeed and seamlessly release the exact
+  //                collateral asset back to the correct borrower's address.
+  //
+  // GIVEN (Context):
+  //   - An active loan holding 1 specific asset ("Hydra Course 2026" NFT) 
+  //     as security backing.
+  //
+  // WHEN (Action):
+  //   - The borrower settles the debt (principal + interest) before the deadline.
+  //   - The transaction securely attaches a script output returning the exact
+  //     NFT asset to the borrower's designated credential.
+  //
+  // THEN (Expected Result):
+  //   - The contract's collateral mapping check passes and returns True.
+  // =========================================================================
+  let borrower_pkh = mock_pub_key_hash(0)
+  let borrower_addr = mock_pub_key_address(0, None)
+  let lender_addr = mock_pub_key_address(1, None)
+
+  let principal = 1_000_000_000
+  let interest_rate = 1000 
+  let total_repayment = 1_100_000_000 
+
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let exact_collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: Some(lender_addr),
+    principal,
+    interest_rate,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: Some(1500),
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: 500 },
+  }
+
+  let current_time = 1000
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, lender_addr, from_lovelace(total_repayment))
+    |> tx_out(True, borrower_addr, exact_collateral)
+    |> required_signer_hash(True, borrower_pkh)
+    |> invalid_before(True, current_time)
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             exact_collateral |> add("", "", principal),
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  crowdlend.crowdlend.spend(Some(loan_datum), Repay, utxo_ref, tx)
+}
 
 // test repay_fail_if_past_due_date
 // (Thất bại nếu quá hạn due_date, người vay không còn quyền tự ý trả nợ nữa)
