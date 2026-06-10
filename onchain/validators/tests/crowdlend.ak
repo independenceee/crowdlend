@@ -9,7 +9,7 @@ use mocktail.{
   tx_out_inline_datum,
 }
 use types.{
-  Active, Cancel, Datum, Fund, Liquidate, Pending, Redeemer, Repay, Status,
+  Active, Cancel, Datum, Fund, Liquidate, Pending, Redeemer, Repay
 }
 
 test fund_success_with_exact_principal_and_collateral_locked() {
@@ -1601,35 +1601,538 @@ test cancel_success_when_status_is_pending_and_signed_by_borrower() {
   crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
 }
 
-// test cancel_success_refunds_collateral_to_borrower_completely
-// (Hủy thành công và trả lại nguyên vẹn tài sản thế chấp về ví người vay)
+test cancel_success_refunds_collateral_to_borrower_completely() {
+  // =========================================================================
+  // GIVEN:
+  //   - A loan request in 'Pending' status.
+  //   - Collateral NFT locked in the script.
+  // WHEN:
+  //   - Borrower cancels the loan.
+  // THEN:
+  //   - Borrower must receive EXACTLY the amount of collateral originally locked.
+  //   - No assets are left behind in the script output (no leaks).
+  // =========================================================================
+  let borrower_pkh = mock_pub_key_hash(0)
+  let borrower_addr = mock_pub_key_address(0, None)
 
-// test cancel_fail_if_loan_is_already_active
-// (Thất bại nếu khoản vay đã được giải ngân, borrower không được phép tự ý hủy để bùng nợ)
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
 
-// test cancel_fail_if_missing_borrower_signature
-// (Thất bại nếu lệnh hủy phát ra từ một ví lạ hoặc thiếu chữ ký của borrower)
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
 
-// test cancel_fail_if_attempted_by_lender
-// (Thất bại nếu người cho vay cố tình can thiệp hủy lệnh gọi vốn của người khác)
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: None,
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: None,
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending,
+  }
 
-// test cancel_fail_if_utxo_is_recreated_at_script
-// (Thất bại nếu giao dịch hủy nhưng UTxO không biến mất mà cố tình tạo lại tại địa chỉ contract)
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, borrower_addr, collateral)
+    |> required_signer_hash(True, borrower_pkh)
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
 
-// test cancel_fail_if_status_is_liquidated
-// (Thất bại nếu cố tình hủy một khoản vay vốn đã bị thanh lý nợ xấu từ trước)
+  crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
+}
 
-// test cancel_success_regardless_of_current_time_if_pending
-// (Hủy thành công tại bất kỳ mốc thời gian nào, miễn là chưa có ai nạp tiền giải ngân)
+test cancel_fail_if_loan_is_already_active() {
+  // =========================================================================
+  // GIVEN:
+  //   - A loan request that is already 'Active' (Funded by a lender).
+  // WHEN:
+  //   - The borrower attempts to trigger the 'Cancel' redeemer.
+  // THEN:
+  //   - The validator must reject the transaction because the loan is no 
+  //     longer in the 'Pending' state, evaluating to False.
+  // =========================================================================
+  let borrower_pkh = mock_pub_key_hash(0)
+  let borrower_addr = mock_pub_key_address(0, None)
+  let lender_addr = mock_pub_key_address(1, None)
 
-// test cancel_fail_if_extra_signatories_is_empty
-// (Thất bại ngay lập tức nếu mảng chứa các chữ ký của giao dịch trống rỗng)
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
 
-// test cancel_fail_if_collateral_sent_to_attacker_address
-// (Thất bại nếu lệnh hủy hợp lệ nhưng địa chỉ nhận tài sản thế chấp lại bị sửa sang ví hacker)
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
 
-// test liquidate_success_when_past_due_date_and_signed_by_lender
-// (Thanh lý thành công khi thời gian thực tế đã vượt quá due_date và được ký bởi lender)
+  // TRẠNG THÁI SAI: Đang là Active, không phải Pending
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: Some(lender_addr),
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: Some(1500),
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: 500 }, 
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, borrower_addr, collateral)
+    |> required_signer_hash(True, borrower_pkh)
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  !crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
+}
+
+test cancel_fail_if_missing_borrower_signature() {
+  // =========================================================================
+  // GIVEN:
+  //   - A loan request in 'Pending' status.
+  // WHEN:
+  //   - A malicious actor tries to 'Cancel' the loan, BUT:
+  //   - The transaction does not include the signature of the legitimate 'borrower'.
+  // THEN:
+  //   - The validator must reject the transaction, evaluating to False.
+  // =========================================================================
+  let hacker_pkh = mock_pub_key_hash(9)
+  let borrower_addr = mock_pub_key_address(0, None)
+
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: None,
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: None,
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending,
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, borrower_addr, collateral)
+    |> required_signer_hash(True, hacker_pkh)
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  !crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
+}
+
+test cancel_fail_if_attempted_by_lender() {
+  // =========================================================================
+  // GIVEN:
+  //   - A loan request in 'Pending' status.
+  // WHEN:
+  //   - An unrelated user (the potential lender) tries to 'Cancel' the loan.
+  // THEN:
+  //   - The validator must reject the transaction, evaluating to False,
+  //     because the signer is not the legitimate 'borrower'.
+  // =========================================================================
+  let borrower_addr = mock_pub_key_address(0, None)
+  
+  let interloper_pkh = mock_pub_key_hash(1)
+  
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: None,
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: None,
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending,
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, borrower_addr, collateral)
+    |> required_signer_hash(True, interloper_pkh)
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  !crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
+}
+
+test cancel_fail_if_utxo_is_recreated_at_script() {
+  // =========================================================================
+  // GIVEN:
+  //   - A loan request in 'Pending' status.
+  // WHEN:
+  //   - Borrower signs 'Cancel', but the transaction creates a new UTxO 
+  //     pointing back to the script address instead of sending it to the borrower.
+  // THEN:
+  //   - The validator must reject, evaluating to False, because the collateral
+  //     was not properly released (the script output count must be 0 for Cancel).
+  // =========================================================================
+  let borrower_pkh = mock_pub_key_hash(0)
+  let borrower_addr = mock_pub_key_address(0, None)
+
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: None,
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: None,
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending,
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, script_address, collateral) 
+    |> required_signer_hash(True, borrower_pkh)
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  !crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
+}
+
+test cancel_fail_if_status_is_liquidated() {
+  // =========================================================================
+  // GIVEN:
+  //   - A loan request that has already been 'Liquidated'.
+  // WHEN:
+  //   - The borrower attempts to trigger the 'Cancel' redeemer.
+  // THEN:
+  //   - The validator must reject the transaction, evaluating to False,
+  //     because the loan is no longer 'Pending'.
+  // =========================================================================
+  let borrower_pkh = mock_pub_key_hash(0)
+  let borrower_addr = mock_pub_key_address(0, None)
+  
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: Some(mock_pub_key_address(1, None)),
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: Some(1500),
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending, 
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, borrower_addr, collateral)
+    |> required_signer_hash(True, borrower_pkh)
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
+}
+
+test cancel_success_regardless_of_current_time_if_pending() {
+  // =========================================================================
+  // GIVEN:
+  //   - A loan request in 'Pending' status.
+  // WHEN:
+  //   - The borrower signs and submits a 'Cancel' transaction.
+  //   - The transaction is submitted at any time (e.g., slot 2000).
+  // THEN:
+  //   - The validator approves the cancellation because there is no lender
+  //     to protect yet, regardless of the time.
+  // =========================================================================
+  let borrower_pkh = mock_pub_key_hash(0)
+  let borrower_addr = mock_pub_key_address(0, None)
+
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: None,
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: None,
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending,
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, borrower_addr, collateral)
+    |> required_signer_hash(True, borrower_pkh)
+    |> invalid_before(True, 2000) 
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
+}
+
+test cancel_fail_if_extra_signatories_is_empty() {
+  // =========================================================================
+  // GIVEN:
+  //   - A loan request in 'Pending' status.
+  // WHEN:
+  //   - Someone submits a 'Cancel' transaction.
+  //   - The 'extra_signatories' field is completely empty (no signatures).
+  // THEN:
+  //   - The validator must reject the transaction, evaluating to False,
+  //     because verify_signature will fail to find the required borrower.
+  // =========================================================================
+  let borrower_addr = mock_pub_key_address(0, None)
+  
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: None,
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: None,
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending,
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, borrower_addr, collateral)
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  !crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
+}
+
+test cancel_fail_if_collateral_sent_to_attacker_address() {
+  // =========================================================================
+  // GIVEN:
+  //   - A loan request in 'Pending' status.
+  // WHEN:
+  //   - The legitimate borrower signs the transaction.
+  //   - BUT the output address is pointing to an attacker's address instead 
+  //     of the original borrower's address.
+  // THEN:
+  //   - The validator must reject, evaluating to False, because the collateral
+  //     does not reach the correct borrower's address.
+  // =========================================================================
+  let borrower_pkh = mock_pub_key_hash(0)
+  let borrower_addr = mock_pub_key_address(0, None)
+  
+  let attacker_addr = mock_pub_key_address(9, None)
+  
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: None,
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: None,
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending,
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, attacker_addr, collateral) 
+    |> required_signer_hash(True, borrower_pkh)
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  !crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
+}
+
+test liquidate_success_when_past_due_date_and_signed_by_lender() {
+  // =========================================================================
+  // GIVEN:
+  //   - Một khoản vay đã 'Active'.
+  //   - Hạn trả nợ (due_date) là 1500.
+  // WHEN:
+  //   - Giao dịch thanh lý được gửi vào slot 1600 (sau due_date).
+  //   - Giao dịch được ký bởi chính Lender.
+  // THEN:
+  //   - Validator cho phép thanh lý và chuyển NFT sang ví Lender.
+  // =========================================================================
+  let lender_pkh = mock_pub_key_hash(1)
+  let lender_addr = mock_pub_key_address(1, None)
+  let borrower_addr = mock_pub_key_address(0, None)
+
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: Some(lender_addr),
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: Some(1500), 
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: 500 },
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, lender_addr, collateral) // NFT chuyển cho Lender
+    |> required_signer_hash(True, lender_pkh) // Phải do Lender ký
+    |> invalid_before(True, 1600) // Thời gian thực hiện > 1500
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
+}
 
 // test liquidate_success_transfers_collateral_to_lender_wallet
 // (Thanh lý thành công khi toàn bộ NFT/Token thế chấp được chuyển trọn vẹn về ví của lender)
