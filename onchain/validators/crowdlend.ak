@@ -1,6 +1,7 @@
 use aiken/collection/list
 use aiken/crypto.{VerificationKeyHash}
 use aiken/interval.{Finite}
+use cardano/address.{VerificationKey}
 use cardano/assets.{
   AssetName, PolicyId, Value, flatten, from_asset, from_lovelace, merge,
   quantity_of, without_lovelace,
@@ -12,7 +13,6 @@ use cardano/tx.{verify_signature}
 use types.{
   Active, Cancel, Datum, Fund, Liquidate, Pending, Redeemer, Repay, Status,
 }
-use cardano/address.{VerificationKey}
 use validation/find.{output_by_addr, output_by_addr_value}
 
 validator crowdlend {
