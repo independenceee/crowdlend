@@ -685,9 +685,110 @@ test fund_fail_if_validity_range_has_no_lower_bound() {
   !crowdlend.crowdlend.spend(Some(datum_input), redeemer, output_reference, tx)
 }
 
-// test fund_fail_multi_input_exploit_attempt
-// (Thất bại nếu hacker cố tình gom nhiều yêu cầu vay vào 1 Tx để giải ngân thiếu tiền - Chống Multi-input)
+test fund_fail_multi_input_exploit_attempt() {
+  // =========================================================================
+  // TEST SCENARIO: Funding must fail if an attacker attempts to process multi-input 
+  //                script UTxOs to siphon or underfund the principal requirements.
+  //
+  // GIVEN (Context):
+  //   - Two independent, distinct pending loan requests at the script.
+  //   - Each loan demands a separate principal of 1,000,000,000 Lovelaces (1000 ADA).
+  //
+  // WHEN (Action):
+  //   - A malicious lender batches BOTH pending inputs into a single transaction,
+  //     but deliberately produces only ONE valid continuing script output containing
+  //     1000 ADA + 1 Collateral NFT. 
+  //   - The second input is left completely unbacked by any matching active output.
+  //
+  // THEN (Expected Result):
+  //   - The contract's multi-input/output balancing check triggers a failure,
+  //     stopping the attack and crashing the transaction (marked with @must_fail to PASS).
+  // =========================================================================
+  let redeemer: Redeemer = Fund
 
+  let borrower: Address = mock_pub_key_address(0, None)
+  let lender: Address = mock_pub_key_address(1, None)
+  let principal: Int = 1_000_000_000
+  let loan_duration: Int = 1000
+  let policy_id: PolicyId = mock_policy_id(0)
+  let asset_name: AssetName = "Hydra Course 2026"
+
+  let script_address: Address = mock_script_address(0, None)
+  let output_reference_1: OutputReference = mock_utxo_ref(0, 0)
+  let output_reference_2: OutputReference = mock_utxo_ref(0, 1)
+
+  let datum_input_1 = Datum {
+    borrower,
+    lender: None,
+    principal,
+    interest_rate: 10,
+    loan_duration,
+    due_duration: 200,
+    due_date: None,
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending,
+  }
+  let datum_input_2 = datum_input_1
+
+  let current_time = 500
+  let expected_due = current_time + loan_duration
+
+  let datum_output_1 = Datum {
+    borrower,
+    lender: Some(lender),
+    principal,
+    interest_rate: 10,
+    loan_duration,
+    due_duration: 200,
+    due_date: Some(expected_due),
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: current_time },
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(
+        True,
+        script_address,
+        from_asset(policy_id, asset_name, 1)
+          |> add("", "", principal),
+      )
+    |> tx_out_inline_datum(True, datum_output_1)
+    |> required_signer_hash(True, mock_pub_key_hash(1))
+    |> invalid_before(True, current_time)
+    |> invalid_hereafter(True, current_time + 10)
+    |> complete()
+    |> add_input(
+        True,
+        Input {
+          output_reference: output_reference_1,
+          output: mock_script_output(
+            script_address,
+            from_asset(policy_id, asset_name, 1) |> add("", "", principal),
+            InlineDatum(Some(datum_input_1)),
+          ),
+        },
+      )
+    |> add_input(
+        True,
+        Input {
+          output_reference: output_reference_2,
+          output: mock_script_output(
+            script_address,
+            from_asset(policy_id, asset_name, 1) |> add("", "", principal),
+            InlineDatum(Some(datum_input_2)),
+          ),
+        },
+      )
+
+  !crowdlend.crowdlend.spend(
+    Some(datum_input_1),
+    redeemer,
+    output_reference_1,
+    tx,
+  )
+}
 // test fund_fail_if_lender_address_is_none_in_output_datum
 // (Thất bại nếu trạng thái chuyển sang Active nhưng trường địa chỉ lender lại bỏ trống)
 

@@ -28,6 +28,14 @@ validator crowdlend {
     let script_address = input.output.address
     let token = input.output.value
       |> without_lovelace()
+    let script_inputs_count = list.count(
+      inputs,
+      fn(input) { input.output.address == script_address },
+    )
+    let script_outputs_count = list.count(
+      outputs,
+      fn(output) { output.address == script_address },
+    )
 
     when redeemer is {
       Fund -> {
@@ -38,37 +46,43 @@ validator crowdlend {
         expect datum_output: Datum = datum_output_raw
         expect Some(lender_address) = datum_output.lender
         expect VerificationKey(lender_pkh) = lender_address.payment_credential
-        expect Finite(current_time) = validity_range.lower_bound.bound_type
-        let expected_due_date = current_time + datum_input.loan_duration
+        when validity_range.lower_bound.bound_type is {
+          Finite(current_time) -> {
+            let expected_due_date = current_time + datum_input.loan_duration
 
-        let min_locked = merge(
-          from_lovelace(datum_input.principal),
-          from_asset(
-            datum_input.collateral_policy_id,
-            datum_input.collateral_asset_name,
-            1,
-          ),
-        )
+            let min_locked = merge(
+              from_lovelace(datum_input.principal),
+              from_asset(
+                datum_input.collateral_policy_id,
+                datum_input.collateral_asset_name,
+                1,
+              ),
+            )
 
-        let flat_min = flatten(min_locked)
-        let value_has_at_least = list.all(
-          flat_min,
-          fn(item) {
-            let (policy_id, asset_name, min_qty) = item
-            quantity_of(output.value, policy_id, asset_name) >= min_qty
-          },
-        )
-        and {
-          verify_signature(extra_signatories, lender_pkh),
-          datum_output.status == Active { funded_at: current_time },
-          datum_output.due_date == Some(expected_due_date),
-          datum_output.lender == Some(lender_address),
-          datum_output.borrower == datum_input.borrower,
-          datum_output.principal == datum_input.principal,
-          datum_output.interest_rate == datum_input.interest_rate,
-          datum_output.collateral_policy_id == datum_input.collateral_policy_id,
-          datum_output.collateral_asset_name == datum_input.collateral_asset_name,
-          value_has_at_least,
+            let flat_min = flatten(min_locked)
+            let value_has_at_least = list.all(
+              flat_min,
+              fn(item) {
+                let (policy_id, asset_name, min_qty) = item
+                quantity_of(output.value, policy_id, asset_name) >= min_qty
+              },
+            )
+
+            and {
+              verify_signature(extra_signatories, lender_pkh),
+              datum_output.status == Active { funded_at: current_time },
+              datum_output.due_date == Some(expected_due_date),
+              datum_output.lender == Some(lender_address),
+              datum_output.borrower == datum_input.borrower,
+              datum_output.principal == datum_input.principal,
+              datum_output.interest_rate == datum_input.interest_rate,
+              datum_output.collateral_policy_id == datum_input.collateral_policy_id,
+              datum_output.collateral_asset_name == datum_input.collateral_asset_name,
+              script_inputs_count == script_outputs_count,
+              value_has_at_least,
+            }
+          }
+          _ -> False
         }
       }
       Repay -> True
