@@ -2134,30 +2134,488 @@ test liquidate_success_when_past_due_date_and_signed_by_lender() {
   crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
 }
 
-// test liquidate_success_transfers_collateral_to_lender_wallet
-// (Thanh lý thành công khi toàn bộ NFT/Token thế chấp được chuyển trọn vẹn về ví của lender)
+test liquidate_success_transfers_collateral_to_lender_wallet() {
+  // =========================================================================
+  // GIVEN:
+  //   - Khoản vay quá hạn (due_date = 1500, current_time = 1600).
+  //   - Collateral NFT đã được khóa trong contract.
+  // WHEN:
+  //   - Lender thực hiện lệnh 'Liquidate'.
+  // THEN:
+  //   - Lender phải nhận được chính xác NFT đó trong ví của họ.
+  //   - Không có tài sản nào bị kẹt lại hoặc chuyển nhầm địa chỉ.
+  // =========================================================================
+  let lender_pkh = mock_pub_key_hash(1)
+  let lender_addr = mock_pub_key_address(1, None)
+  let borrower_addr = mock_pub_key_address(0, None)
 
-// test liquidate_fail_if_before_due_date
-// (Thất bại nếu lender cố tình "xiết nợ" sớm khi thời gian chưa vượt qua mốc due_date)
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
 
-// test liquidate_fail_if_missing_lender_signature
-// (Thất bại nếu quá hạn nhưng giao dịch tịch thu tài sản lại thiếu chữ ký xác thực của lender)
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
 
-// test liquidate_fail_if_loan_is_still_pending
-// (Thất bại nếu cố tình thanh lý một yêu cầu vay chưa từng được giải ngân tiền gốc)
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: Some(lender_addr),
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: Some(1500),
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: 500 },
+  }
 
-// test liquidate_fail_time_overlap_exploit_attempt
-// (Thất bại nếu khoảng thời gian giao dịch (validity_range) mập mờ, có phần giao thoa trước hạn - Chống Time Exploit)
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, lender_addr, collateral)
+    |> required_signer_hash(True, lender_pkh)
+    |> invalid_before(True, 1600)
+    |> invalid_hereafter(True, 1700) 
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
 
-// test liquidate_fail_if_collateral_is_sent_to_wrong_address
-// (Thất bại nếu tài sản thế chấp sau thanh lý không về ví lender mà chạy sang ví khác)
+  crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
+}
 
-// test liquidate_fail_if_borrower_tries_to_liquidate_own_loan
-// (Thất bại nếu người đi vay giả mạo lệnh tự thanh lý nhằm mục đích xóa vết nợ xấu trái phép)
+test liquidate_fail_if_before_due_date() {
+  // =========================================================================
+  // GIVEN:
+  //   - Một khoản vay 'Active' với hạn trả nợ (due_date) là 1500.
+  // WHEN:
+  //   - Lender cố gắng 'Liquidate' vào slot 1400 (trước khi đến hạn).
+  // THEN:
+  //   - Validator phải từ chối giao dịch, trả về False, vì borrower 
+  //     vẫn còn thời gian để hoàn thành nghĩa vụ.
+  // =========================================================================
+  let lender_pkh = mock_pub_key_hash(1)
+  let lender_addr = mock_pub_key_address(1, None)
+  let borrower_addr = mock_pub_key_address(0, None)
 
-// test liquidate_fail_if_validity_range_has_no_finite_lower_bound
-// (Thất bại nếu cấu hình thời gian giao dịch dạng vô hạn, không có mốc cụ thể để chứng minh đã quá hạn)
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
 
-// test liquidate_success_at_exact_next_slot_after_due_date
-// (Thanh lý thành công ngay tại slot thời gian kế tiếp liền kề sau thời điểm hết hạn)
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
 
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: Some(lender_addr),
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: Some(1500), 
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: 500 },
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, lender_addr, collateral)
+    |> required_signer_hash(True, lender_pkh)
+    |> invalid_before(True, 1400) 
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  !crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
+}
+
+test liquidate_fail_if_missing_lender_signature() {
+  // =========================================================================
+  // GIVEN:
+  //   - Một khoản vay 'Active' đã quá hạn (due_date = 1500).
+  // WHEN:
+  //   - Một ví lạ (không phải Lender) cố gắng gọi lệnh 'Liquidate'.
+  //   - Giao dịch thiếu chữ ký của Lender.
+  // THEN:
+  //   - Validator phải từ chối giao dịch, trả về False.
+  // =========================================================================
+  let lender_addr = mock_pub_key_address(1, None)
+  let borrower_addr = mock_pub_key_address(0, None)
+  let hacker_pkh = mock_pub_key_hash(9)
+  
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: Some(lender_addr),
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: Some(1500), 
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: 500 },
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, lender_addr, collateral)
+    |> required_signer_hash(True, hacker_pkh) 
+    |> invalid_before(True, 1600) // Đã quá hạn
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  !crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
+}
+
+test liquidate_fail_if_loan_is_still_pending() {
+  // =========================================================================
+  // GIVEN:
+  //   - A loan request in 'Pending' status (No lender has funded it yet).
+  // WHEN:
+  //   - Someone attempts to trigger the 'Liquidate' redeemer.
+  // THEN:
+  //   - The validator must reject the transaction, evaluating to False,
+  //     because you cannot liquidate a loan that was never funded.
+  // =========================================================================
+  let borrower_addr = mock_pub_key_address(0, None)
+  let lender_addr = mock_pub_key_address(1, None)
+  
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: None,
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: None,
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending, 
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, lender_addr, collateral)
+    |> required_signer_hash(True, mock_pub_key_hash(1))
+    |> invalid_before(True, 1600)
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  !crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
+}
+
+test liquidate_fail_time_overlap_exploit_attempt() {
+  // =========================================================================
+  // GIVEN:
+  //   - Hạn trả nợ là 1500.
+  // WHEN:
+  //   - Kẻ tấn công cố gắng thanh lý với khoảng thời gian bắt đầu (invalid_before)
+  //     tại 1499 (vẫn còn 1 đơn vị thời gian trước khi quá hạn).
+  // THEN:
+  //   - Validator phải từ chối, vì 1499 <= 1500, chưa thỏa mãn điều kiện quá hạn.
+  // =========================================================================
+  let lender_pkh = mock_pub_key_hash(1)
+  let lender_addr = mock_pub_key_address(1, None)
+  let borrower_addr = mock_pub_key_address(0, None)
+  
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: Some(lender_addr),
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: Some(1500), 
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: 500 },
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, lender_addr, collateral)
+    |> required_signer_hash(True, lender_pkh)
+    |> invalid_before(True, 1499) 
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  !crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
+}
+
+test liquidate_fail_if_collateral_is_sent_to_wrong_address() {
+  // =========================================================================
+  // GIVEN:
+  //   - Một khoản vay đã quá hạn.
+  // WHEN:
+  //   - Lender thực hiện lệnh 'Liquidate' và ký tên hợp lệ.
+  //   - NHƯNG tài sản (NFT) lại được gửi tới một địa chỉ ngẫu nhiên (hoặc ví hacker).
+  // THEN:
+  //   - Validator phải từ chối giao dịch, trả về False.
+  // =========================================================================
+  let lender_pkh = mock_pub_key_hash(1)
+  let lender_addr = mock_pub_key_address(1, None)
+  let borrower_addr = mock_pub_key_address(0, None)
+  let hacker_addr = mock_pub_key_address(9, None) // Ví kẻ tấn công
+  
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: Some(lender_addr),
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: Some(1500), 
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: 500 },
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, hacker_addr, collateral) 
+    |> required_signer_hash(True, lender_pkh)
+    |> invalid_before(True, 1600)
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  !crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
+}
+
+test liquidate_fail_if_borrower_tries_to_liquidate_own_loan() {
+  // =========================================================================
+  // GIVEN:
+  //   - Một khoản vay đã quá hạn.
+  // WHEN:
+  //   - Borrower cố tình ký và gửi lệnh 'Liquidate'.
+  // THEN:
+  //   - Validator phải từ chối giao dịch, trả về False, vì borrower không 
+  //     có quyền thanh lý (chỉ lender mới được phép).
+  // =========================================================================
+  let lender_addr = mock_pub_key_address(1, None)
+  let borrower_pkh = mock_pub_key_hash(0)
+  let borrower_addr = mock_pub_key_address(0, None)
+  
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: Some(lender_addr),
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: Some(1500), 
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: 500 },
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> required_signer_hash(True, borrower_pkh) 
+    |> invalid_before(True, 1600) 
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  !crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
+}
+
+test liquidate_fail_if_validity_range_has_no_finite_lower_bound() {
+  // =========================================================================
+  // GIVEN:
+  //   - Một khoản vay đã quá hạn.
+  // WHEN:
+  //   - Lender gửi giao dịch thanh lý nhưng cấu hình 'invalid_before' bị thiếu
+  //     (tức là giao dịch có thể thực hiện bất cứ lúc nào từ đầu thời gian).
+  // THEN:
+  //   - Validator phải từ chối vì không có mốc 'lower_bound' hữu hạn để xác 
+  //     minh tính hợp lệ của việc thanh lý.
+  // =========================================================================
+  let lender_pkh = mock_pub_key_hash(1)
+  let lender_addr = mock_pub_key_address(1, None)
+  let borrower_addr = mock_pub_key_address(0, None)
+  
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: Some(lender_addr),
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: Some(1500), 
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: 500 },
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, lender_addr, collateral)
+    |> required_signer_hash(True, lender_pkh)
+    |> complete() 
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  !crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
+}
+
+test liquidate_success_at_exact_next_slot_after_due_date() {
+  // =========================================================================
+  // GIVEN:
+  //   - Khoản vay với due_date = 1500.
+  // WHEN:
+  //   - Lender thực hiện thanh lý tại slot 1501 (đúng 1 slot sau khi hết hạn).
+  // THEN:
+  //   - Validator phải chấp nhận giao dịch vì điều kiện quá hạn đã được thỏa mãn.
+  // =========================================================================
+  let lender_pkh = mock_pub_key_hash(1)
+  let lender_addr = mock_pub_key_address(1, None)
+  let borrower_addr = mock_pub_key_address(0, None)
+  
+  let policy_id = mock_policy_id(0)
+  let asset_name = "Hydra Course 2026"
+  let collateral = from_asset(policy_id, asset_name, 1)
+
+  let script_address = mock_script_address(0, None)
+  let utxo_ref = mock_utxo_ref(0, 0)
+
+  let loan_datum = Datum {
+    borrower: borrower_addr,
+    lender: Some(lender_addr),
+    principal: 1_000_000_000,
+    interest_rate: 1000,
+    loan_duration: 1000,
+    due_duration: 200,
+    due_date: Some(1500), 
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: 500 },
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(True, lender_addr, collateral)
+    |> required_signer_hash(True, lender_pkh)
+    |> invalid_before(True, 1501) 
+    |> complete()
+    |> add_input(
+         True,
+         Input {
+           output_reference: utxo_ref,
+           output: mock_script_output(
+             script_address,
+             collateral,
+             InlineDatum(Some(loan_datum))
+           )
+         }
+       )
+
+  crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
+}
