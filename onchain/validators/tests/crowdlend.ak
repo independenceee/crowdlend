@@ -1,13 +1,12 @@
-use aiken/interval
 use cardano/address.{Address}
-use cardano/assets.{AssetName, PolicyId, from_lovelace, from_asset, add}
+use cardano/assets.{AssetName, PolicyId, add, from_asset, from_lovelace}
 use cardano/transaction.{InlineDatum, Input, OutputReference, Transaction}
 use crowdlend
 use mocktail.{
   add_input, complete, invalid_before, invalid_hereafter, mock_policy_id,
   mock_pub_key_address, mock_pub_key_hash, mock_script_address,
   mock_script_output, mock_utxo_ref, mocktail_tx, required_signer_hash, tx_out,
-  tx_out_inline_datum
+  tx_out_inline_datum,
 }
 use types.{
   Active, Cancel, Datum, Fund, Liquidate, Pending, Redeemer, Repay, Status,
@@ -72,7 +71,7 @@ test fund_success_with_exact_principal_and_collateral_locked() {
     status: Active { funded_at: current_time },
   }
 
-  let tx = mocktail_tx()
+  let tx: Transaction = mocktail_tx()
     |> tx_out(
         True,
         script_address,
@@ -99,17 +98,344 @@ test fund_success_with_exact_principal_and_collateral_locked() {
 
   crowdlend.crowdlend.spend(Some(datum_input), redeemer, output_reference, tx)
 }
-// test fund_success_calculates_correct_due_date
-// (Giải ngân thành công và tính toán chính xác hạn trả nợ due_date = current_time + loan_duration)
 
-// test fund_fail_if_loan_status_is_already_active
-// (Thất bại nếu cố tình giải ngân vào một khoản vay đã được người khác nạp tiền trước đó)
+test fund_success_calculates_correct_due_date() {
+  // =========================================================================
+  // TEST SCENARIO: Verification of precise 'due_date' computation during funding.
+  // GIVEN: A pending loan with a predefined duration of 1000 slots.
+  // WHEN: The loan is funded exactly at slot 500 (current_time).
+  // THEN: The transaction must pass because the output datum specifies 
+  //       the exact mathematical timeline: due_date = 500 + 1000 = 1500.
+  // =========================================================================
+  let redeemer: Redeemer = Fund
 
-// test fund_fail_if_missing_lender_signature
-// (Thất bại nếu lệnh giải ngân không có chữ ký xác thực của chính ví lender)
+  let borrower: Address = mock_pub_key_address(0, None)
+  let lender: Address = mock_pub_key_address(1, None)
+  let principal: Int = 1_000_000_000
+  let loan_duration: Int = 1000 // Hạn vay: 1000 slots
+  let policy_id: PolicyId = mock_policy_id(0)
+  let asset_name: AssetName = "Hydra Course 2026"
 
-// test fund_fail_if_output_lovelace_is_less_than_principal
-// (Thất bại nếu số ADA khóa ở output script mới ít hơn số tiền gốc principal yêu cầu)
+  let script_address: Address = mock_script_address(0, None)
+  let output_reference: OutputReference = mock_utxo_ref(0, 0)
+
+  let datum_input = Datum {
+    borrower,
+    lender: None,
+    principal,
+    interest_rate: 10,
+    loan_duration,
+    due_duration: 200,
+    due_date: None,
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending,
+  }
+
+  let current_time = 500
+  let expected_due = current_time + loan_duration
+
+  let datum_output = Datum {
+    borrower,
+    lender: Some(lender),
+    principal,
+    interest_rate: 10,
+    loan_duration,
+    due_duration: 200,
+    due_date: Some(expected_due),
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: current_time },
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(
+        True,
+        script_address,
+        from_asset(policy_id, asset_name, 1)
+          |> add("", "", principal),
+      )
+    |> tx_out_inline_datum(True, datum_output)
+    |> required_signer_hash(True, mock_pub_key_hash(1))
+    |> invalid_before(True, current_time)
+    |> invalid_hereafter(True, current_time + 10)
+    |> complete()
+    |> add_input(
+        True,
+        Input {
+          output_reference,
+          output: mock_script_output(
+            script_address,
+            from_asset(policy_id, asset_name, 1)
+              |> add("", "", principal),
+            InlineDatum(Some(datum_input)),
+          ),
+        },
+      )
+
+
+  crowdlend.crowdlend.spend(Some(datum_input), redeemer, output_reference, tx)
+}
+
+test fund_fail_if_loan_status_is_already_active() {
+  // =========================================================================
+  // TEST SCENARIO: Funding must fail if the loan is already in Active status.
+  //
+  // GIVEN (Context):
+  //   - A loan request UTxO that has ALREADY been funded by an earlier lender.
+  //   - The input datum's status is already set to 'Active' with a 'funded_at' timestamp.
+  //
+  // WHEN (Action):
+  //   - A malicious actor or another lender tries to invoke the 'Fund' redeemer 
+  //     on this already active UTxO at slot 600.
+  //
+  // THEN (Expected Result):
+  //   - The validator must reject the transaction to prevent overriding terms 
+  //     or double-funding (returns false).
+  // =========================================================================
+  let redeemer: Redeemer = Fund
+
+  let borrower: Address = mock_pub_key_address(0, None)
+  let initial_lender: Address = mock_pub_key_address(1, None)
+  let second_lender: Address = mock_pub_key_address(2, None)
+  let principal: Int = 1_000_000_000
+  let loan_duration: Int = 1000
+  let policy_id: PolicyId = mock_policy_id(0)
+  let asset_name: AssetName = "Hydra Course 2026"
+
+  let script_address: Address = mock_script_address(0, None)
+  let output_reference: OutputReference = mock_utxo_ref(0, 0)
+
+  let original_funding_time = 500
+  let original_expected_due = original_funding_time + loan_duration
+
+  
+  let datum_input = Datum {
+    borrower,
+    lender: Some(initial_lender), 
+    principal,
+    interest_rate: 10,
+    loan_duration,
+    due_duration: 200,
+    due_date: Some(original_expected_due),
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: original_funding_time },
+  }
+
+  let attack_time = 600
+  let new_expected_due = attack_time + loan_duration
+  let datum_output = Datum {
+    borrower,
+    lender: Some(second_lender), 
+    principal,
+    interest_rate: 10,
+    loan_duration,
+    due_duration: 200,
+    due_date: Some(new_expected_due),
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: attack_time },
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(
+        True,
+        script_address,
+        from_asset(policy_id, asset_name, 1)
+          |> add("", "", principal),
+      )
+    |> tx_out_inline_datum(True, datum_output)
+    |> required_signer_hash(True, mock_pub_key_hash(2)) 
+    |> invalid_before(True, attack_time)
+    |> invalid_hereafter(True, attack_time + 10)
+    |> complete()
+    |> add_input(
+        True,
+        Input {
+          output_reference,
+          output: mock_script_output(
+            script_address,
+            from_asset(policy_id, asset_name, 1)
+              |> add("", "", principal),
+            InlineDatum(Some(datum_input)),
+          ),
+        },
+      )
+
+  !crowdlend.crowdlend.spend(Some(datum_input), redeemer, output_reference, tx)
+}
+
+test fund_fail_if_missing_lender_signature() {
+  // =========================================================================
+  // TEST SCENARIO: Funding must fail if the Lender's signature is missing.
+  //
+  // GIVEN (Context):
+  //   - A valid pending loan request waiting to be funded.
+  //   - Correct script output containing the exact principal ADA and collateral.
+  //
+  // WHEN (Action):
+  //   - A transaction attempts to execute the 'Fund' redeemer but completely
+  //     omits the required lender's signature verification key hash.
+  //
+  // THEN (Expected Result):
+  //   - The validator must immediately crash/exit prematurely due to the 
+  //     failed 'verify_signature' assertion (marked with @must_fail to PASS).
+  // =========================================================================
+  let redeemer: Redeemer = Fund
+
+  let borrower: Address = mock_pub_key_address(0, None)
+  let lender: Address = mock_pub_key_address(1, None)
+  let principal: Int = 1_000_000_000
+  let loan_duration: Int = 1000
+  let policy_id: PolicyId = mock_policy_id(0)
+  let asset_name: AssetName = "Hydra Course 2026"
+
+  let script_address: Address = mock_script_address(0, None)
+  let output_reference: OutputReference = mock_utxo_ref(0, 0)
+
+  let datum_input = Datum {
+    borrower,
+    lender: None,
+    principal,
+    interest_rate: 10,
+    loan_duration,
+    due_duration: 200,
+    due_date: None,
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending,
+  }
+
+  let current_time = 500
+  let expected_due = current_time + loan_duration
+  let datum_output = Datum {
+    borrower,
+    lender: Some(lender),
+    principal,
+    interest_rate: 10,
+    loan_duration,
+    due_duration: 200,
+    due_date: Some(expected_due),
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: current_time },
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(
+        True,
+        script_address,
+        from_asset(policy_id, asset_name, 1)
+          |> add("", "", principal),
+      )
+    |> tx_out_inline_datum(True, datum_output)
+    // |> required_signer_hash(True, mock_pub_key_hash(1))
+    |> invalid_before(True, current_time)
+    |> invalid_hereafter(True, current_time + 10)
+    |> complete()
+    |> add_input(
+        True,
+        Input {
+          output_reference,
+          output: mock_script_output(
+            script_address,
+            from_asset(policy_id, asset_name, 1)
+              |> add("", "", principal),
+            InlineDatum(Some(datum_input)),
+          ),
+        },
+      )
+
+ 
+  !crowdlend.crowdlend.spend(Some(datum_input), redeemer, output_reference, tx)
+}
+
+test fund_fail_if_output_lovelace_is_less_than_principal() {
+  // =========================================================================
+  // TEST SCENARIO: Funding must fail if the ADA locked in the output script 
+  //                is less than the demanded principal.
+  //
+  // GIVEN (Context):
+  //   - A pending loan request demanding a principal of 1,000,000,000 Lovelaces (1000 ADA).
+  //
+  // WHEN (Action):
+  //   - A lender tries to execute the 'Fund' redeemer but only deposits 
+  //     500,000,000 Lovelaces (500 ADA) into the resulting script output.
+  //
+  // THEN (Expected Result):
+  //   - The validator must catch the financial deficit and crash the transaction 
+  //     (marked with @must_fail to PASS).
+  // =========================================================================
+  let redeemer: Redeemer = Fund
+
+  let borrower: Address = mock_pub_key_address(0, None)
+  let lender: Address = mock_pub_key_address(1, None)
+  let principal: Int = 1_000_000_000
+  let loan_duration: Int = 1000
+  let policy_id: PolicyId = mock_policy_id(0)
+  let asset_name: AssetName = "Hydra Course 2026"
+
+  let script_address: Address = mock_script_address(0, None)
+  let output_reference: OutputReference = mock_utxo_ref(0, 0)
+
+  let datum_input = Datum {
+    borrower,
+    lender: None,
+    principal,
+    interest_rate: 10,
+    loan_duration,
+    due_duration: 200,
+    due_date: None,
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending,
+  }
+
+  let current_time = 500
+  let expected_due = current_time + loan_duration
+  let datum_output = Datum {
+    borrower,
+    lender: Some(lender),
+    principal,
+    interest_rate: 10,
+    loan_duration,
+    due_duration: 200,
+    due_date: Some(expected_due),
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: current_time },
+  }
+
+  let malicious_short_principal = 500_000_000 
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(
+        True,
+        script_address,
+        from_asset(policy_id, asset_name, 1)
+          |> add("", "", malicious_short_principal), 
+      )
+    |> tx_out_inline_datum(True, datum_output)
+    |> required_signer_hash(True, mock_pub_key_hash(1))
+    |> invalid_before(True, current_time)
+    |> invalid_hereafter(True, current_time + 10)
+    |> complete()
+    |> add_input(
+        True,
+        Input {
+          output_reference,
+          output: mock_script_output(
+            script_address,
+            from_asset(policy_id, asset_name, 1)
+              |> add("", "", principal),
+            InlineDatum(Some(datum_input)),
+          ),
+        },
+      )
+
+  !crowdlend.crowdlend.spend(Some(datum_input), redeemer, output_reference, tx)
+}
 
 // test fund_fail_if_collateral_token_is_missing_or_wrong_quantity
 // (Thất bại nếu trong ví UTxO mới bị rút bớt hoặc mất đi token thế chấp)
