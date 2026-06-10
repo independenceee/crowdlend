@@ -1,5 +1,4 @@
 use aiken/collection/list
-use aiken/crypto.{VerificationKeyHash}
 use aiken/interval.{Finite}
 use cardano/address.{VerificationKey}
 use cardano/assets.{

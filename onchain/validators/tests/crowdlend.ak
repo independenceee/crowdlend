@@ -789,8 +789,93 @@ test fund_fail_multi_input_exploit_attempt() {
     tx,
   )
 }
-// test fund_fail_if_lender_address_is_none_in_output_datum
-// (Thất bại nếu trạng thái chuyển sang Active nhưng trường địa chỉ lender lại bỏ trống)
+
+test fund_fail_if_lender_address_is_none_in_output_datum() {
+  // =========================================================================
+  // TEST SCENARIO: Funding must fail if the contract status shifts to Active
+  //                but the lender address field is maliciously left empty (None).
+  //
+  // GIVEN (Context):
+  //   - A standard pending loan request waiting for a lender.
+  //
+  // WHEN (Action):
+  //   - An attacker triggers the 'Fund' redeemer but constructs an output datum
+  //     where the 'lender' field remains 'None' instead of 'Some(lender_address)'.
+  //
+  // THEN (Expected Result):
+  //   - The validator detects the missing identity parameter through its strict
+  //     data shape mapping and rejects the transaction.
+  // =========================================================================
+  let redeemer: Redeemer = Fund
+
+  let borrower: Address = mock_pub_key_address(0, None)
+  let principal: Int = 1_000_000_000
+  let loan_duration: Int = 1000
+  let policy_id: PolicyId = mock_policy_id(0)
+  let asset_name: AssetName = "Hydra Course 2026"
+
+  let script_address: Address = mock_script_address(0, None)
+  let output_reference: OutputReference = mock_utxo_ref(0, 0)
+
+  let datum_input = Datum {
+    borrower,
+    lender: None,
+    principal,
+    interest_rate: 10,
+    loan_duration,
+    due_duration: 200,
+    due_date: None,
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending,
+  }
+
+  let current_time = 500
+  let expected_due = current_time + loan_duration
+
+  let datum_output = Datum {
+    borrower,
+    lender: None, 
+    principal,
+    interest_rate: 10,
+    loan_duration,
+    due_duration: 200,
+    due_date: Some(expected_due),
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: current_time },
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(
+        True,
+        script_address,
+        from_asset(policy_id, asset_name, 1)
+          |> add("", "", principal),
+      )
+    |> tx_out_inline_datum(True, datum_output)
+    // Kể cả khi có ký mã hash của ví giả lập
+    |> required_signer_hash(True, mock_pub_key_hash(1))
+    |> invalid_before(True, current_time)
+    |> invalid_hereafter(True, current_time + 10)
+    |> complete()
+    |> add_input(
+        True,
+        Input {
+          output_reference,
+          output: mock_script_output(
+            script_address,
+            from_asset(policy_id, asset_name, 1)
+              |> add("", "", principal),
+            InlineDatum(Some(datum_input)),
+          ),
+        },
+      )
+
+ 
+  
+  !crowdlend.crowdlend.spend(Some(datum_input), redeemer, output_reference, tx)
+}
 
 // test repay_success_before_due_date_with_full_interest
 // (Trả nợ thành công trước hạn và chuyển đủ gốc + lãi cho lender)
