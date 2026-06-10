@@ -112,7 +112,8 @@ test fund_success_calculates_correct_due_date() {
   let borrower: Address = mock_pub_key_address(0, None)
   let lender: Address = mock_pub_key_address(1, None)
   let principal: Int = 1_000_000_000
-  let loan_duration: Int = 1000 // Hạn vay: 1000 slots
+  let loan_duration: Int = 1000
+  // Hạn vay: 1000 slots
   let policy_id: PolicyId = mock_policy_id(0)
   let asset_name: AssetName = "Hydra Course 2026"
 
@@ -173,7 +174,6 @@ test fund_success_calculates_correct_due_date() {
         },
       )
 
-
   crowdlend.crowdlend.spend(Some(datum_input), redeemer, output_reference, tx)
 }
 
@@ -209,10 +209,9 @@ test fund_fail_if_loan_status_is_already_active() {
   let original_funding_time = 500
   let original_expected_due = original_funding_time + loan_duration
 
-  
   let datum_input = Datum {
     borrower,
-    lender: Some(initial_lender), 
+    lender: Some(initial_lender),
     principal,
     interest_rate: 10,
     loan_duration,
@@ -227,7 +226,7 @@ test fund_fail_if_loan_status_is_already_active() {
   let new_expected_due = attack_time + loan_duration
   let datum_output = Datum {
     borrower,
-    lender: Some(second_lender), 
+    lender: Some(second_lender),
     principal,
     interest_rate: 10,
     loan_duration,
@@ -246,7 +245,7 @@ test fund_fail_if_loan_status_is_already_active() {
           |> add("", "", principal),
       )
     |> tx_out_inline_datum(True, datum_output)
-    |> required_signer_hash(True, mock_pub_key_hash(2)) 
+    |> required_signer_hash(True, mock_pub_key_hash(2))
     |> invalid_before(True, attack_time)
     |> invalid_hereafter(True, attack_time + 10)
     |> complete()
@@ -347,7 +346,6 @@ test fund_fail_if_missing_lender_signature() {
         },
       )
 
- 
   !crowdlend.crowdlend.spend(Some(datum_input), redeemer, output_reference, tx)
 }
 
@@ -407,14 +405,14 @@ test fund_fail_if_output_lovelace_is_less_than_principal() {
     status: Active { funded_at: current_time },
   }
 
-  let malicious_short_principal = 500_000_000 
+  let malicious_short_principal = 500_000_000
 
   let tx: Transaction = mocktail_tx()
     |> tx_out(
         True,
         script_address,
         from_asset(policy_id, asset_name, 1)
-          |> add("", "", malicious_short_principal), 
+          |> add("", "", malicious_short_principal),
       )
     |> tx_out_inline_datum(True, datum_output)
     |> required_signer_hash(True, mock_pub_key_hash(1))
@@ -494,14 +492,10 @@ test fund_fail_if_collateral_token_is_missing_or_wrong_quantity() {
     status: Active { funded_at: current_time },
   }
 
-  let malicious_output_value = from_lovelace(principal) 
+  let malicious_output_value = from_lovelace(principal)
 
   let tx: Transaction = mocktail_tx()
-    |> tx_out(
-        True,
-        script_address,
-        malicious_output_value, 
-      )
+    |> tx_out(True, script_address, malicious_output_value)
     |> tx_out_inline_datum(True, datum_output)
     |> required_signer_hash(True, mock_pub_key_hash(1))
     |> invalid_before(True, current_time)
@@ -554,7 +548,7 @@ test fund_fail_if_loan_terms_altered_in_output_datum() {
     borrower,
     lender: None,
     principal,
-    interest_rate: 10, 
+    interest_rate: 10,
     loan_duration,
     due_duration: 200,
     due_date: None,
@@ -570,7 +564,7 @@ test fund_fail_if_loan_terms_altered_in_output_datum() {
     borrower,
     lender: Some(lender),
     principal,
-    interest_rate: 50, 
+    interest_rate: 50,
     loan_duration,
     due_duration: 200,
     due_date: Some(expected_due),
@@ -607,8 +601,89 @@ test fund_fail_if_loan_terms_altered_in_output_datum() {
   !crowdlend.crowdlend.spend(Some(datum_input), redeemer, output_reference, tx)
 }
 
-// test fund_fail_if_validity_range_has_no_lower_bound
-// (Thất bại nếu transaction không khai báo thời gian bắt đầu, khiến script không có mốc tính due_date)
+test fund_fail_if_validity_range_has_no_lower_bound() {
+  // =========================================================================
+  // TEST SCENARIO: Funding must fail if the transaction validity range
+  //                lacks a finite lower bound.
+  //
+  // GIVEN (Context):
+  //   - A standard pending loan request with a 1000-slot duration.
+  //
+  // WHEN (Action):
+  //   - A lender attempts to fund the loan, but submits a transaction where
+  //     the lower bound of the validity range is completely missing 
+  //     (omitting the 'invalid_before' parameter).
+  //
+  // THEN (Expected Result):
+  //   - The validator cannot identify a valid starting slot to calculate
+  //     the 'due_date', triggering a strict assertion panic (marked with @must_fail to PASS).
+  // =========================================================================
+  let redeemer: Redeemer = Fund
+
+  let borrower: Address = mock_pub_key_address(0, None)
+  let lender: Address = mock_pub_key_address(1, None)
+  let principal: Int = 1_000_000_000
+  let loan_duration: Int = 1000
+  let policy_id: PolicyId = mock_policy_id(0)
+  let asset_name: AssetName = "Hydra Course 2026"
+
+  let script_address: Address = mock_script_address(0, None)
+  let output_reference: OutputReference = mock_utxo_ref(0, 0)
+
+  let datum_input = Datum {
+    borrower,
+    lender: None,
+    principal,
+    interest_rate: 10,
+    loan_duration,
+    due_duration: 200,
+    due_date: None,
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Pending,
+  }
+
+  let current_time = 500
+  let expected_due = current_time + loan_duration
+  let datum_output = Datum {
+    borrower,
+    lender: Some(lender),
+    principal,
+    interest_rate: 10,
+    loan_duration,
+    due_duration: 200,
+    due_date: Some(expected_due),
+    collateral_policy_id: policy_id,
+    collateral_asset_name: asset_name,
+    status: Active { funded_at: current_time },
+  }
+
+  let tx: Transaction = mocktail_tx()
+    |> tx_out(
+        True,
+        script_address,
+        from_asset(policy_id, asset_name, 1)
+          |> add("", "", principal),
+      )
+    |> tx_out_inline_datum(True, datum_output)
+    |> required_signer_hash(True, mock_pub_key_hash(1))
+    // |> invalid_before(True, current_time) 
+    |> invalid_hereafter(True, current_time + 10)
+    |> complete()
+    |> add_input(
+        True,
+        Input {
+          output_reference,
+          output: mock_script_output(
+            script_address,
+            from_asset(policy_id, asset_name, 1)
+              |> add("", "", principal),
+            InlineDatum(Some(datum_input)),
+          ),
+        },
+      )
+  !crowdlend.crowdlend.spend(Some(datum_input), redeemer, output_reference, tx)
+}
 
 // test fund_fail_multi_input_exploit_attempt
 // (Thất bại nếu hacker cố tình gom nhiều yêu cầu vay vào 1 Tx để giải ngân thiếu tiền - Chống Multi-input)
