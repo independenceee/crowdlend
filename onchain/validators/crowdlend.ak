@@ -1,8 +1,9 @@
 use aiken/collection/list
 use aiken/interval.{Finite}
-use cardano/address.{VerificationKey}
+use cardano/address.{Address, VerificationKey}
 use cardano/assets.{
-  flatten, from_asset, from_lovelace, merge, quantity_of, without_lovelace,
+  PolicyId, flatten, from_asset, from_lovelace, merge, quantity_of,
+  without_lovelace,
 }
 use cardano/transaction.{
   InlineDatum, Output, OutputReference, Transaction, find_input,
@@ -190,6 +191,18 @@ validator crowdlend {
           _ -> False
         }
     }
+  }
+
+  else(_) {
+    fail
+  }
+}
+
+validator identity(issuer: Address) {
+  mint(_redeemer: Void, _policy_id: PolicyId, transaction: Transaction) {
+    let Transaction { extra_signatories, .. } = transaction
+    expect VerificationKey(issuer_pkh) = issuer.payment_credential
+    verify_signature(extra_signatories, issuer_pkh)
   }
 
   else(_) {

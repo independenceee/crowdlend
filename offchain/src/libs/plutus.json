@@ -37,7 +37,7 @@
             "hash": "195dc4d8ceac14e0928bf2385cb20370708648561817b62cd57f0d72"
         },
         {
-            "title": "identity.identity.mint",
+            "title": "crowdlend.identity.mint",
             "redeemer": {
                 "title": "_redeemer",
                 "schema": {
@@ -56,7 +56,7 @@
             "hash": "731f99167ea6750fd90c47cdbd545ee9e6a6509facf0840065dbe7bf"
         },
         {
-            "title": "identity.identity.else",
+            "title": "crowdlend.identity.else",
             "redeemer": {
                 "schema": {}
             },

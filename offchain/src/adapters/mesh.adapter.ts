@@ -2,6 +2,7 @@ import {
     applyParamsToScript,
     deserializeAddress,
     deserializeDatum,
+    mPubKeyAddress,
     IFetcher,
     MeshTxBuilder,
     MeshWallet,
@@ -28,11 +29,10 @@ import { APP_NETWORK_ID } from "../constants/enviroments";
  * - Preparing data for transaction building
  */
 export class MeshAdapter {
+    public issuer?: string;
+    public name: string;
     public policyId: string;
     public spendAddress: string;
-    public name: string;
-    public threshold: number;
-    public allowance: number;
 
     protected mintCompileCode: string;
     protected mintScriptCbor: string;
@@ -56,25 +56,15 @@ export class MeshAdapter {
      *
      * @param {MeshWallet} meshWallet - Active Mesh wallet instance to connect.
      */
-    constructor({
-        meshWallet = null!,
-        threshold = 1,
-        allowance = 10 * DECIMAL_PLACE,
-        name,
-    }: {
-        meshWallet: MeshWallet;
-        threshold?: number;
-        allowance: number;
-        name: string;
-    }) {
+    constructor({ meshWallet = null!, issuer, name }: { meshWallet: MeshWallet,issuer?: string, name: string }) {
         this.meshWallet = meshWallet;
-        this.threshold = threshold;
-        this.allowance = allowance;
-        this.name = name;
         this.fetcher = blockfrostProvider;
 
-        this.spendCompileCode = this.readValidator(plutus as Plutus, title.multisigTreasury);
-        this.spendScriptCbor = applyParamsToScript(this.spendCompileCode, [this.threshold, this.allowance]);
+        this.issuer = issuer;
+        this.name = name;
+
+        this.spendCompileCode = this.readValidator(plutus as Plutus, title.crowdlend);
+        this.spendScriptCbor = applyParamsToScript(this.spendCompileCode, [], "Mesh");
         this.spendScript = {
             code: this.spendScriptCbor,
             version: "V3",
@@ -88,13 +78,8 @@ export class MeshAdapter {
             APP_NETWORK_ID,
         );
 
-        this.mintCompileCode = this.readValidator(plutus as Plutus, title.identityFactory);
-        this.mintScriptCbor = applyParamsToScript(this.mintCompileCode, [
-            this.threshold,
-            this.allowance,
-            deserializeAddress(this.spendAddress).scriptHash,
-            this.name,
-        ]);
+        this.mintCompileCode = this.readValidator(plutus as Plutus, title.identity);
+        this.mintScriptCbor = applyParamsToScript(this.mintCompileCode, [mPubKeyAddress(deserializeAddress(this.issuer!).pubKeyHash, deserializeAddress(this.issuer!).stakeCredentialHash)], "Mesh");
         this.mintScript = {
             code: this.mintScriptCbor,
             version: "V3",
@@ -103,6 +88,8 @@ export class MeshAdapter {
     }
 
     public initalize = async (): Promise<void> => {
+        
+
         this.meshTxBuilder = new MeshTxBuilder({
             fetcher: this.fetcher,
             evaluator: blockfrostProvider,
