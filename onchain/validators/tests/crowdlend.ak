@@ -8,9 +8,7 @@ use mocktail.{
   mock_script_output, mock_utxo_ref, mocktail_tx, required_signer_hash, tx_out,
   tx_out_inline_datum,
 }
-use types.{
-  Active, Cancel, Datum, Fund, Liquidate, Pending, Redeemer, Repay
-}
+use types.{Active, Cancel, Datum, Fund, Liquidate, Pending, Redeemer, Repay}
 
 test fund_success_with_exact_principal_and_collateral_locked() {
   // =========================================================================
@@ -967,8 +965,8 @@ test repay_success_exactly_at_due_date() {
   let lender_addr = mock_pub_key_address(1, None)
 
   let principal = 1_000_000_000
-  let interest_rate = 1000 
-  let total_repayment = 1_100_000_000 
+  let interest_rate = 1000
+  let total_repayment = 1_100_000_000
 
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
@@ -985,13 +983,13 @@ test repay_success_exactly_at_due_date() {
     interest_rate,
     loan_duration: 1000,
     due_duration: 200,
-    due_date: Some(due_date), 
+    due_date: Some(due_date),
     collateral_policy_id: policy_id,
     collateral_asset_name: asset_name,
     status: Active { funded_at: 500 },
   }
 
-  let ultimate_valid_slot = due_date - 1 
+  let ultimate_valid_slot = due_date - 1
 
   let tx: Transaction = mocktail_tx()
     |> tx_out(True, lender_addr, from_lovelace(total_repayment))
@@ -1001,16 +999,16 @@ test repay_success_exactly_at_due_date() {
     |> invalid_hereafter(True, due_date + 1)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral |> add("", "", principal),
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral |> add("", "", principal),
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   crowdlend.crowdlend.spend(Some(loan_datum), Repay, utxo_ref, tx)
 }
@@ -1037,8 +1035,8 @@ test repay_success_returns_exact_collateral_to_borrower() {
   let lender_addr = mock_pub_key_address(1, None)
 
   let principal = 1_000_000_000
-  let interest_rate = 1000 
-  let total_repayment = 1_100_000_000 
+  let interest_rate = 1000
+  let total_repayment = 1_100_000_000
 
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
@@ -1070,16 +1068,16 @@ test repay_success_returns_exact_collateral_to_borrower() {
     |> invalid_hereafter(True, 1200)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             exact_collateral |> add("", "", principal),
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            exact_collateral |> add("", "", principal),
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   crowdlend.crowdlend.spend(Some(loan_datum), Repay, utxo_ref, tx)
 }
@@ -1105,9 +1103,9 @@ test repay_fail_if_past_due_date() {
   let borrower_addr = mock_pub_key_address(0, None)
   let lender_addr = mock_pub_key_address(1, None)
 
-  let principal = 1_000_000_000 
-  let interest_rate = 1000 
-  let total_repayment = 1_100_000_000 
+  let principal = 1_000_000_000
+  let interest_rate = 1000
+  let total_repayment = 1_100_000_000
 
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
@@ -1123,13 +1121,13 @@ test repay_fail_if_past_due_date() {
     interest_rate,
     loan_duration: 1000,
     due_duration: 200,
-    due_date: Some(1500), 
+    due_date: Some(1500),
     collateral_policy_id: policy_id,
     collateral_asset_name: asset_name,
     status: Active { funded_at: 500 },
   }
 
-  let current_time = 1600 
+  let current_time = 1600
 
   let tx: Transaction = mocktail_tx()
     |> tx_out(True, lender_addr, from_lovelace(total_repayment))
@@ -1138,16 +1136,16 @@ test repay_fail_if_past_due_date() {
     |> invalid_before(True, current_time)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral |> add("", "", principal),
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral |> add("", "", principal),
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Repay, utxo_ref, tx)
 }
@@ -1172,10 +1170,13 @@ test repay_fail_if_amount_sent_to_lender_is_insufficient() {
   let borrower_addr = mock_pub_key_address(0, None)
   let lender_addr = mock_pub_key_address(1, None)
 
-  let principal = 1_000_000_000 // 1000 ADA
-  let interest_rate = 1000 // 10%
-  let absolute_repayment = 1_100_000_000 // 1100 ADA đúng nghĩa
+  let principal = 1_000_000_000
+  // 1000 ADA
+  let interest_rate = 1000
+  // 10%
+  let absolute_repayment = 1_100_000_000
 
+  // 1100 ADA đúng nghĩa
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
   let collateral = from_asset(policy_id, asset_name, 1)
@@ -1196,7 +1197,7 @@ test repay_fail_if_amount_sent_to_lender_is_insufficient() {
     status: Active { funded_at: 500 },
   }
 
-  let malicious_insufficient_payment = absolute_repayment - 1 
+  let malicious_insufficient_payment = absolute_repayment - 1
 
   let tx: Transaction = mocktail_tx()
     |> tx_out(True, lender_addr, from_lovelace(malicious_insufficient_payment))
@@ -1205,16 +1206,16 @@ test repay_fail_if_amount_sent_to_lender_is_insufficient() {
     |> invalid_before(True, 1000)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral |> add("", "", principal),
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral |> add("", "", principal),
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Repay, utxo_ref, tx)
 }
@@ -1238,13 +1239,12 @@ test repay_fail_if_sent_to_wrong_lender_address() {
   // =========================================================================
   let borrower_pkh = mock_pub_key_hash(0)
   let borrower_addr = mock_pub_key_address(0, None)
-  
   let genuine_lender_addr = mock_pub_key_address(1, None)
-  let wrong_lender_addr = mock_pub_key_address(99, None) 
+  let wrong_lender_addr = mock_pub_key_address(99, None)
 
   let principal = 1_000_000_000
-  let interest_rate = 1000 
-  let total_repayment = 1_100_000_000 
+  let interest_rate = 1000
+  let total_repayment = 1_100_000_000
 
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
@@ -1255,7 +1255,7 @@ test repay_fail_if_sent_to_wrong_lender_address() {
 
   let loan_datum = Datum {
     borrower: borrower_addr,
-    lender: Some(genuine_lender_addr), 
+    lender: Some(genuine_lender_addr),
     principal,
     interest_rate,
     loan_duration: 1000,
@@ -1273,16 +1273,16 @@ test repay_fail_if_sent_to_wrong_lender_address() {
     |> invalid_before(True, 1000)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral |> add("", "", principal),
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral |> add("", "", principal),
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Repay, utxo_ref, tx)
 }
@@ -1318,7 +1318,7 @@ test repay_fail_if_loan_was_never_funded() {
 
   let loan_datum = Datum {
     borrower: borrower_addr,
-    lender: None, 
+    lender: None,
     principal,
     interest_rate: 1000,
     loan_duration: 1000,
@@ -1326,7 +1326,7 @@ test repay_fail_if_loan_was_never_funded() {
     due_date: None,
     collateral_policy_id: policy_id,
     collateral_asset_name: asset_name,
-    status: Pending, 
+    status: Pending,
   }
 
   let tx: Transaction = mocktail_tx()
@@ -1335,16 +1335,16 @@ test repay_fail_if_loan_was_never_funded() {
     |> invalid_before(True, 1000)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral, 
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Repay, utxo_ref, tx)
 }
@@ -1373,8 +1373,8 @@ test repay_fail_if_script_retains_collateral() {
   let lender_addr = mock_pub_key_address(1, None)
 
   let principal = 1_000_000_000
-  let interest_rate = 1000 
-  let total_repayment = 1_100_000_000 
+  let interest_rate = 1000
+  let total_repayment = 1_100_000_000
 
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
@@ -1404,16 +1404,16 @@ test repay_fail_if_script_retains_collateral() {
     |> invalid_before(True, 1000)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral |> add("", "", principal),
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral |> add("", "", principal),
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Repay, utxo_ref, tx)
 }
@@ -1440,8 +1440,8 @@ test repay_fail_if_validity_range_upper_bound_is_missing() {
   let lender_addr = mock_pub_key_address(1, None)
 
   let principal = 1_000_000_000
-  let interest_rate = 1000 
-  let total_repayment = 1_100_000_000 
+  let interest_rate = 1000
+  let total_repayment = 1_100_000_000
 
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
@@ -1467,19 +1467,19 @@ test repay_fail_if_validity_range_upper_bound_is_missing() {
     |> tx_out(True, lender_addr, from_lovelace(total_repayment))
     |> tx_out(True, borrower_addr, collateral)
     |> required_signer_hash(True, borrower_pkh)
-    |> invalid_before(True, 1000) 
+    |> invalid_before(True, 1000)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral |> add("", "", principal),
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral |> add("", "", principal),
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Repay, utxo_ref, tx)
 }
@@ -1504,8 +1504,8 @@ test repay_fail_if_borrower_signature_is_missing() {
   let lender_addr = mock_pub_key_address(1, None)
 
   let principal = 1_000_000_000
-  let interest_rate = 1000 
-  let total_repayment = 1_100_000_000 
+  let interest_rate = 1000
+  let total_repayment = 1_100_000_000
 
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
@@ -1534,16 +1534,16 @@ test repay_fail_if_borrower_signature_is_missing() {
     |> invalid_hereafter(True, 1200)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral |> add("", "", principal),
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral |> add("", "", principal),
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Repay, utxo_ref, tx)
 }
@@ -1578,25 +1578,26 @@ test cancel_success_when_status_is_pending_and_signed_by_borrower() {
     due_date: None,
     collateral_policy_id: policy_id,
     collateral_asset_name: asset_name,
-    status: Pending, // Trạng thái cho phép hủy
+    status: Pending,
   }
 
+  // Trạng thái cho phép hủy
   let tx: Transaction = mocktail_tx()
     // Trả lại NFT cho người vay
     |> tx_out(True, borrower_addr, collateral)
     |> required_signer_hash(True, borrower_pkh)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
 }
@@ -1640,16 +1641,16 @@ test cancel_success_refunds_collateral_to_borrower_completely() {
     |> required_signer_hash(True, borrower_pkh)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
 }
@@ -1686,7 +1687,7 @@ test cancel_fail_if_loan_is_already_active() {
     due_date: Some(1500),
     collateral_policy_id: policy_id,
     collateral_asset_name: asset_name,
-    status: Active { funded_at: 500 }, 
+    status: Active { funded_at: 500 },
   }
 
   let tx: Transaction = mocktail_tx()
@@ -1694,16 +1695,16 @@ test cancel_fail_if_loan_is_already_active() {
     |> required_signer_hash(True, borrower_pkh)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
 }
@@ -1746,16 +1747,16 @@ test cancel_fail_if_missing_borrower_signature() {
     |> required_signer_hash(True, hacker_pkh)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
 }
@@ -1771,9 +1772,7 @@ test cancel_fail_if_attempted_by_lender() {
   //     because the signer is not the legitimate 'borrower'.
   // =========================================================================
   let borrower_addr = mock_pub_key_address(0, None)
-  
   let interloper_pkh = mock_pub_key_hash(1)
-  
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
   let collateral = from_asset(policy_id, asset_name, 1)
@@ -1799,16 +1798,16 @@ test cancel_fail_if_attempted_by_lender() {
     |> required_signer_hash(True, interloper_pkh)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
 }
@@ -1848,20 +1847,20 @@ test cancel_fail_if_utxo_is_recreated_at_script() {
   }
 
   let tx: Transaction = mocktail_tx()
-    |> tx_out(True, script_address, collateral) 
+    |> tx_out(True, script_address, collateral)
     |> required_signer_hash(True, borrower_pkh)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
 }
@@ -1878,7 +1877,6 @@ test cancel_fail_if_status_is_liquidated() {
   // =========================================================================
   let borrower_pkh = mock_pub_key_hash(0)
   let borrower_addr = mock_pub_key_address(0, None)
-  
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
   let collateral = from_asset(policy_id, asset_name, 1)
@@ -1896,7 +1894,7 @@ test cancel_fail_if_status_is_liquidated() {
     due_date: Some(1500),
     collateral_policy_id: policy_id,
     collateral_asset_name: asset_name,
-    status: Pending, 
+    status: Pending,
   }
 
   let tx: Transaction = mocktail_tx()
@@ -1904,16 +1902,16 @@ test cancel_fail_if_status_is_liquidated() {
     |> required_signer_hash(True, borrower_pkh)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
 }
@@ -1955,19 +1953,19 @@ test cancel_success_regardless_of_current_time_if_pending() {
   let tx: Transaction = mocktail_tx()
     |> tx_out(True, borrower_addr, collateral)
     |> required_signer_hash(True, borrower_pkh)
-    |> invalid_before(True, 2000) 
+    |> invalid_before(True, 2000)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
 }
@@ -1984,7 +1982,6 @@ test cancel_fail_if_extra_signatories_is_empty() {
   //     because verify_signature will fail to find the required borrower.
   // =========================================================================
   let borrower_addr = mock_pub_key_address(0, None)
-  
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
   let collateral = from_asset(policy_id, asset_name, 1)
@@ -2009,16 +2006,16 @@ test cancel_fail_if_extra_signatories_is_empty() {
     |> tx_out(True, borrower_addr, collateral)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
 }
@@ -2037,9 +2034,7 @@ test cancel_fail_if_collateral_sent_to_attacker_address() {
   // =========================================================================
   let borrower_pkh = mock_pub_key_hash(0)
   let borrower_addr = mock_pub_key_address(0, None)
-  
   let attacker_addr = mock_pub_key_address(9, None)
-  
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
   let collateral = from_asset(policy_id, asset_name, 1)
@@ -2061,20 +2056,20 @@ test cancel_fail_if_collateral_sent_to_attacker_address() {
   }
 
   let tx: Transaction = mocktail_tx()
-    |> tx_out(True, attacker_addr, collateral) 
+    |> tx_out(True, attacker_addr, collateral)
     |> required_signer_hash(True, borrower_pkh)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Cancel, utxo_ref, tx)
 }
@@ -2108,28 +2103,31 @@ test liquidate_success_when_past_due_date_and_signed_by_lender() {
     interest_rate: 1000,
     loan_duration: 1000,
     due_duration: 200,
-    due_date: Some(1500), 
+    due_date: Some(1500),
     collateral_policy_id: policy_id,
     collateral_asset_name: asset_name,
     status: Active { funded_at: 500 },
   }
 
   let tx: Transaction = mocktail_tx()
-    |> tx_out(True, lender_addr, collateral) // NFT chuyển cho Lender
-    |> required_signer_hash(True, lender_pkh) // Phải do Lender ký
-    |> invalid_before(True, 1600) // Thời gian thực hiện > 1500
+    |> tx_out(True, lender_addr, collateral)
+    // NFT chuyển cho Lender
+    |> required_signer_hash(True, lender_pkh)
+    // Phải do Lender ký
+    |> invalid_before(True, 1600)
+    // Thời gian thực hiện > 1500
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
 }
@@ -2173,19 +2171,19 @@ test liquidate_success_transfers_collateral_to_lender_wallet() {
     |> tx_out(True, lender_addr, collateral)
     |> required_signer_hash(True, lender_pkh)
     |> invalid_before(True, 1600)
-    |> invalid_hereafter(True, 1700) 
+    |> invalid_hereafter(True, 1700)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
 }
@@ -2218,7 +2216,7 @@ test liquidate_fail_if_before_due_date() {
     interest_rate: 1000,
     loan_duration: 1000,
     due_duration: 200,
-    due_date: Some(1500), 
+    due_date: Some(1500),
     collateral_policy_id: policy_id,
     collateral_asset_name: asset_name,
     status: Active { funded_at: 500 },
@@ -2227,19 +2225,19 @@ test liquidate_fail_if_before_due_date() {
   let tx: Transaction = mocktail_tx()
     |> tx_out(True, lender_addr, collateral)
     |> required_signer_hash(True, lender_pkh)
-    |> invalid_before(True, 1400) 
+    |> invalid_before(True, 1400)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
 }
@@ -2257,7 +2255,6 @@ test liquidate_fail_if_missing_lender_signature() {
   let lender_addr = mock_pub_key_address(1, None)
   let borrower_addr = mock_pub_key_address(0, None)
   let hacker_pkh = mock_pub_key_hash(9)
-  
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
   let collateral = from_asset(policy_id, asset_name, 1)
@@ -2272,7 +2269,7 @@ test liquidate_fail_if_missing_lender_signature() {
     interest_rate: 1000,
     loan_duration: 1000,
     due_duration: 200,
-    due_date: Some(1500), 
+    due_date: Some(1500),
     collateral_policy_id: policy_id,
     collateral_asset_name: asset_name,
     status: Active { funded_at: 500 },
@@ -2280,20 +2277,21 @@ test liquidate_fail_if_missing_lender_signature() {
 
   let tx: Transaction = mocktail_tx()
     |> tx_out(True, lender_addr, collateral)
-    |> required_signer_hash(True, hacker_pkh) 
-    |> invalid_before(True, 1600) // Đã quá hạn
+    |> required_signer_hash(True, hacker_pkh)
+    |> invalid_before(True, 1600)
+    // Đã quá hạn
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
 }
@@ -2310,7 +2308,6 @@ test liquidate_fail_if_loan_is_still_pending() {
   // =========================================================================
   let borrower_addr = mock_pub_key_address(0, None)
   let lender_addr = mock_pub_key_address(1, None)
-  
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
   let collateral = from_asset(policy_id, asset_name, 1)
@@ -2328,7 +2325,7 @@ test liquidate_fail_if_loan_is_still_pending() {
     due_date: None,
     collateral_policy_id: policy_id,
     collateral_asset_name: asset_name,
-    status: Pending, 
+    status: Pending,
   }
 
   let tx: Transaction = mocktail_tx()
@@ -2337,16 +2334,16 @@ test liquidate_fail_if_loan_is_still_pending() {
     |> invalid_before(True, 1600)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
 }
@@ -2364,7 +2361,6 @@ test liquidate_fail_time_overlap_exploit_attempt() {
   let lender_pkh = mock_pub_key_hash(1)
   let lender_addr = mock_pub_key_address(1, None)
   let borrower_addr = mock_pub_key_address(0, None)
-  
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
   let collateral = from_asset(policy_id, asset_name, 1)
@@ -2379,7 +2375,7 @@ test liquidate_fail_time_overlap_exploit_attempt() {
     interest_rate: 1000,
     loan_duration: 1000,
     due_duration: 200,
-    due_date: Some(1500), 
+    due_date: Some(1500),
     collateral_policy_id: policy_id,
     collateral_asset_name: asset_name,
     status: Active { funded_at: 500 },
@@ -2388,19 +2384,19 @@ test liquidate_fail_time_overlap_exploit_attempt() {
   let tx: Transaction = mocktail_tx()
     |> tx_out(True, lender_addr, collateral)
     |> required_signer_hash(True, lender_pkh)
-    |> invalid_before(True, 1499) 
+    |> invalid_before(True, 1499)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
 }
@@ -2418,8 +2414,8 @@ test liquidate_fail_if_collateral_is_sent_to_wrong_address() {
   let lender_pkh = mock_pub_key_hash(1)
   let lender_addr = mock_pub_key_address(1, None)
   let borrower_addr = mock_pub_key_address(0, None)
-  let hacker_addr = mock_pub_key_address(9, None) // Ví kẻ tấn công
-  
+  let hacker_addr = mock_pub_key_address(9, None)
+  // Ví kẻ tấn công
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
   let collateral = from_asset(policy_id, asset_name, 1)
@@ -2434,28 +2430,28 @@ test liquidate_fail_if_collateral_is_sent_to_wrong_address() {
     interest_rate: 1000,
     loan_duration: 1000,
     due_duration: 200,
-    due_date: Some(1500), 
+    due_date: Some(1500),
     collateral_policy_id: policy_id,
     collateral_asset_name: asset_name,
     status: Active { funded_at: 500 },
   }
 
   let tx: Transaction = mocktail_tx()
-    |> tx_out(True, hacker_addr, collateral) 
+    |> tx_out(True, hacker_addr, collateral)
     |> required_signer_hash(True, lender_pkh)
     |> invalid_before(True, 1600)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
 }
@@ -2473,7 +2469,6 @@ test liquidate_fail_if_borrower_tries_to_liquidate_own_loan() {
   let lender_addr = mock_pub_key_address(1, None)
   let borrower_pkh = mock_pub_key_hash(0)
   let borrower_addr = mock_pub_key_address(0, None)
-  
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
   let collateral = from_asset(policy_id, asset_name, 1)
@@ -2488,27 +2483,27 @@ test liquidate_fail_if_borrower_tries_to_liquidate_own_loan() {
     interest_rate: 1000,
     loan_duration: 1000,
     due_duration: 200,
-    due_date: Some(1500), 
+    due_date: Some(1500),
     collateral_policy_id: policy_id,
     collateral_asset_name: asset_name,
     status: Active { funded_at: 500 },
   }
 
   let tx: Transaction = mocktail_tx()
-    |> required_signer_hash(True, borrower_pkh) 
-    |> invalid_before(True, 1600) 
+    |> required_signer_hash(True, borrower_pkh)
+    |> invalid_before(True, 1600)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
 }
@@ -2527,7 +2522,6 @@ test liquidate_fail_if_validity_range_has_no_finite_lower_bound() {
   let lender_pkh = mock_pub_key_hash(1)
   let lender_addr = mock_pub_key_address(1, None)
   let borrower_addr = mock_pub_key_address(0, None)
-  
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
   let collateral = from_asset(policy_id, asset_name, 1)
@@ -2542,7 +2536,7 @@ test liquidate_fail_if_validity_range_has_no_finite_lower_bound() {
     interest_rate: 1000,
     loan_duration: 1000,
     due_duration: 200,
-    due_date: Some(1500), 
+    due_date: Some(1500),
     collateral_policy_id: policy_id,
     collateral_asset_name: asset_name,
     status: Active { funded_at: 500 },
@@ -2551,18 +2545,18 @@ test liquidate_fail_if_validity_range_has_no_finite_lower_bound() {
   let tx: Transaction = mocktail_tx()
     |> tx_out(True, lender_addr, collateral)
     |> required_signer_hash(True, lender_pkh)
-    |> complete() 
+    |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   !crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
 }
@@ -2579,7 +2573,6 @@ test liquidate_success_at_exact_next_slot_after_due_date() {
   let lender_pkh = mock_pub_key_hash(1)
   let lender_addr = mock_pub_key_address(1, None)
   let borrower_addr = mock_pub_key_address(0, None)
-  
   let policy_id = mock_policy_id(0)
   let asset_name = "Hydra Course 2026"
   let collateral = from_asset(policy_id, asset_name, 1)
@@ -2594,7 +2587,7 @@ test liquidate_success_at_exact_next_slot_after_due_date() {
     interest_rate: 1000,
     loan_duration: 1000,
     due_duration: 200,
-    due_date: Some(1500), 
+    due_date: Some(1500),
     collateral_policy_id: policy_id,
     collateral_asset_name: asset_name,
     status: Active { funded_at: 500 },
@@ -2603,19 +2596,19 @@ test liquidate_success_at_exact_next_slot_after_due_date() {
   let tx: Transaction = mocktail_tx()
     |> tx_out(True, lender_addr, collateral)
     |> required_signer_hash(True, lender_pkh)
-    |> invalid_before(True, 1501) 
+    |> invalid_before(True, 1501)
     |> complete()
     |> add_input(
-         True,
-         Input {
-           output_reference: utxo_ref,
-           output: mock_script_output(
-             script_address,
-             collateral,
-             InlineDatum(Some(loan_datum))
-           )
-         }
-       )
+        True,
+        Input {
+          output_reference: utxo_ref,
+          output: mock_script_output(
+            script_address,
+            collateral,
+            InlineDatum(Some(loan_datum)),
+          ),
+        },
+      )
 
   crowdlend.crowdlend.spend(Some(loan_datum), Liquidate, utxo_ref, tx)
 }
