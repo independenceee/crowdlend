@@ -1,7 +1,7 @@
 import { MeshAdapter } from "../adapters/mesh.adapter";
 import { APP_NETWORK } from "../constants/enviroments";
 import { DECIMAL_PLACE } from "../constants/common";
-import { deserializeAddress, mConStr0, mConStr1, mConStr2, stringToHex, mPubKeyAddress } from "@meshsdk/core";
+import { deserializeAddress, mConStr0, mConStr1, mConStr2, stringToHex, mPubKeyAddress, resolveSlotNo } from "@meshsdk/core";
 
 export class MeshTxBuilder extends MeshAdapter {
     create = async ({
@@ -75,7 +75,7 @@ export class MeshTxBuilder extends MeshAdapter {
         return await unsignedTx.complete();
     };
 
-    fund = async ({ lender }: { lender: string }) => {
+    fund = async () => {
         const { utxos, collateral, walletAddress } = await this.getWalletForTx();
         const utxo = await this.getAddressUTXOAsset(this.spendAddress, this.policyId + stringToHex(this.name));
 
@@ -85,7 +85,15 @@ export class MeshTxBuilder extends MeshAdapter {
 
         const datum = this.convertDatum({ plutusData: utxo.output.plutusData! });
 
-        console.log(datum);
+        if (datum.status.type !== "Pending") {
+            throw new Error("The loan is not in 'Pending' status and cannot be funded.");
+        }
+
+        const validFromSlot = Number(resolveSlotNo("preview", Date.now())) - 200;
+        const validToSlot = Number(resolveSlotNo("preview", Date.now())) + 1000;
+
+        const validFromPosixMs = Date.now() - 200 * 1000;
+        const dueDatePosixMs = validFromPosixMs + datum.loanDuration;
 
         const unsignedTx = this.meshTxBuilder;
 
@@ -96,23 +104,33 @@ export class MeshTxBuilder extends MeshAdapter {
             .txInRedeemerValue(mConStr0([]))
             .txInScript(this.spendScriptCbor)
             .txOut(this.spendAddress, [
-                { unit: "lovelace", quantity: String(datum.principal + 5 * DECIMAL_PLACE) },
-                { unit: this.policyId + stringToHex(this.name), quantity: "1" },
+                {
+                    unit: "lovelace",
+                    quantity: String(datum.principal + 5 * DECIMAL_PLACE),
+                },
+                {
+                    unit: this.policyId + stringToHex(this.name),
+                    quantity: "1",
+                },
             ])
             .txOutInlineDatumValue(
                 mConStr0([
                     mPubKeyAddress(deserializeAddress(datum.borrower).pubKeyHash, deserializeAddress(datum.borrower).stakeCredentialHash),
-                    lender ? mPubKeyAddress(deserializeAddress(lender).pubKeyHash, deserializeAddress(lender).stakeCredentialHash) : mConStr0([]),
+                    walletAddress
+                        ? mPubKeyAddress(deserializeAddress(walletAddress).pubKeyHash, deserializeAddress(walletAddress).stakeCredentialHash)
+                        : mConStr0([]),
                     datum.principal,
                     datum.interestRate,
                     datum.loanDuration,
                     datum.dueDuration,
-                    datum.dueDate ? mConStr0([datum.dueDate]) : mConStr0([]),
+                    datum.dueDate ? mConStr0([datum.dueDate]) : mConStr0([dueDatePosixMs]),
                     this.policyId,
                     stringToHex(this.name),
-                    datum.status.type === "Pending" ? mConStr0([]) : mConStr1([]),
+                    mConStr1([validFromPosixMs]),
                 ]),
-            );
+            )
+            .invalidBefore(validFromSlot)
+            .invalidHereafter(validToSlot);
 
         unsignedTx
             .selectUtxosFrom(utxos)
@@ -126,9 +144,49 @@ export class MeshTxBuilder extends MeshAdapter {
 
     repay = async () => {
         const { utxos, collateral, walletAddress } = await this.getWalletForTx();
+        const utxo = await this.getAddressUTXOAsset(this.spendAddress, this.policyId + stringToHex(this.name));
 
+        if (!utxo) {
+            throw new Error("No UTxO found for the specified asset. Please ensure the loan has been created before repayment.");
+        }
+
+        const datum = this.convertDatum({ plutusData: utxo.output.plutusData! });
+
+        if (walletAddress !== datum.borrower || datum.status.type !== "Active" || !datum.lender || !datum.dueDate) {
+            throw new Error(
+                "Only the borrower can repay the loan. Additionally, the loan must be in 'Active' status with a valid lender and due date to be repaid.",
+            );
+        }
 
         const unsignedTx = this.meshTxBuilder;
+
+        unsignedTx
+            .mintPlutusScriptV3()
+            .mint("-1", this.policyId, stringToHex(this.name))
+            .mintingScript(this.mintScriptCbor)
+            .mintRedeemerValue(mConStr0([]))
+
+            .spendingPlutusScriptV3()
+            .txIn(utxo.input.txHash, utxo.input.outputIndex)
+            .txInInlineDatumPresent()
+            .txInRedeemerValue(mConStr2([]))
+            .txInScript(this.spendScriptCbor)
+
+            .txOut(datum.lender, [
+                {
+                    unit: "lovelace",
+                    quantity: String(datum.principal + Math.floor((datum.principal * datum.interestRate) / 10000)),
+                },
+            ])
+            .txOut(walletAddress, [
+                {
+                    unit: "lovelace",
+                    quantity: String(5 * DECIMAL_PLACE),
+                },
+            ])
+
+            .invalidBefore(0)
+            .invalidHereafter(0);
 
         unsignedTx
             .selectUtxosFrom(utxos)

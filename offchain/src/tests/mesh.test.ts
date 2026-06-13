@@ -32,7 +32,7 @@ describe("CrowdFund is a decentralized crowdfunding platform on Cardano that ena
         return;
         const meshTxBuilder: MeshTxBuilder = new MeshTxBuilder({
             meshWallet: meshWallet,
-            name: "Aiken Course 2026",
+            name: "Aiken Course 2025",
             issuer: "addr_test1qz45qtdupp8g30lzzr684m8mc278s284cjvawna5ypwkvq7s8xszw9mgmwpxdyakl7dgpfmzywctzlsaghnqrl494wnqhgsy3g",
         });
 
@@ -62,20 +62,13 @@ describe("CrowdFund is a decentralized crowdfunding platform on Cardano that ena
         // return;
         const meshTxBuilder: MeshTxBuilder = new MeshTxBuilder({
             meshWallet: meshWallet,
-            name: "Aiken Course 2026",
+            name: "Aiken Course 2025",
             issuer: "addr_test1qz45qtdupp8g30lzzr684m8mc278s284cjvawna5ypwkvq7s8xszw9mgmwpxdyakl7dgpfmzywctzlsaghnqrl494wnqhgsy3g",
         });
 
         await meshTxBuilder.initalize();
 
-        const unsignedTx: string = await meshTxBuilder.fund({
-            quantity: 5 * DECIMAL_PLACE,
-            borrower: "addr_test1qz45qtdupp8g30lzzr684m8mc278s284cjvawna5ypwkvq7s8xszw9mgmwpxdyakl7dgpfmzywctzlsaghnqrl494wnqhgsy3g",
-            principal: 10 * DECIMAL_PLACE,
-            interestRate: 500,
-            loanDuration: 60 * 60 * 1000,
-            dueDuration: 5,
-        });
+        const unsignedTx: string = await meshTxBuilder.fund();
 
         const signedTx = await meshWallet.signTx(unsignedTx, true);
 
