@@ -4,7 +4,7 @@ import { blockfrostProvider } from "../providers/cardano/blockfrost";
 import { APP_MNEMONIC, APP_NETWORK, APP_NETWORK_ID } from "../constants/enviroments";
 import { DECIMAL_PLACE } from "../constants/common";
 
-describe("A multisig treasury is a shared fund where spending requires approval from at least m of n participants, with a predefined spending limit for security.", function () {
+describe("CrowdFund is a decentralized crowdfunding platform on Cardano that enables secure donations, transparent fund management, and trustless fundraising through smart contracts.", function () {
     let meshWallet: MeshWallet;
 
     // account 0 - addr_test1qz45qtdupp8g30lzzr684m8mc278s284cjvawna5ypwkvq7s8xszw9mgmwpxdyakl7dgpfmzywctzlsaghnqrl494wnqhgsy3g
@@ -28,23 +28,23 @@ describe("A multisig treasury is a shared fund where spending requires approval 
 
     jest.setTimeout(600000000);
 
-    test("Init", async function () {
+    test("Create", async function () {
         return;
         const meshTxBuilder: MeshTxBuilder = new MeshTxBuilder({
             meshWallet: meshWallet,
-            threshold: 2,
-            allowance: 20 * DECIMAL_PLACE,
             name: "Aiken Course 2026",
+            issuer: "addr_test1qz45qtdupp8g30lzzr684m8mc278s284cjvawna5ypwkvq7s8xszw9mgmwpxdyakl7dgpfmzywctzlsaghnqrl494wnqhgsy3g",
         });
 
         await meshTxBuilder.initalize();
 
-        const unsignedTx: string = await meshTxBuilder.init({
-            receiver: "addr_test1qz45qtdupp8g30lzzr684m8mc278s284cjvawna5ypwkvq7s8xszw9mgmwpxdyakl7dgpfmzywctzlsaghnqrl494wnqhgsy3g",
-            owners: [
-                "addr_test1qz45qtdupp8g30lzzr684m8mc278s284cjvawna5ypwkvq7s8xszw9mgmwpxdyakl7dgpfmzywctzlsaghnqrl494wnqhgsy3g",
-                "addr_test1qr39uar0u87xrmptw0f8ryx5mp3scvc3pkehp57yj5zhugxdgese6p77sy9hk0rqc5wqd6n8vmfyqq9f7sdfz9dm0azqzmmdew",
-            ],
+        const unsignedTx: string = await meshTxBuilder.create({
+            quantity: 5 * DECIMAL_PLACE,
+            borrower: "addr_test1qz45qtdupp8g30lzzr684m8mc278s284cjvawna5ypwkvq7s8xszw9mgmwpxdyakl7dgpfmzywctzlsaghnqrl494wnqhgsy3g",
+            principal: 10 * DECIMAL_PLACE,
+            interestRate: 500,
+            loanDuration: 60 * 60 * 1000,
+            dueDuration: 5,
         });
 
         const signedTx = await meshWallet.signTx(unsignedTx, true);
@@ -58,90 +58,27 @@ describe("A multisig treasury is a shared fund where spending requires approval 
         });
     });
 
-    test("Deposit", async function () {
-        return;
-        const meshTxBuilder: MeshTxBuilder = new MeshTxBuilder({
-            meshWallet: meshWallet,
-            threshold: 2,
-            allowance: 20 * DECIMAL_PLACE,
-            name: "Aiken Course 2026",
-        });
-
-        await meshTxBuilder.initalize();
-        const unsignedTx: string = await meshTxBuilder.deposit({
-            quantity: String(10 * DECIMAL_PLACE),
-        });
-
-        const signedTx = await meshWallet.signTx(unsignedTx, true);
-        const txHash = await meshWallet.submitTx(signedTx);
-        await new Promise<void>(function (resolve) {
-            blockfrostProvider.onTxConfirmed(txHash, () => {
-                console.log("https://" + APP_NETWORK + ".cexplorer.io/tx/" + txHash);
-                resolve();
-            });
-        });
-    });
-
-    test("Signature", async function () {
-        return;
-        const meshTxBuilder: MeshTxBuilder = new MeshTxBuilder({
-            meshWallet: meshWallet,
-            threshold: 2,
-            allowance: 20 * DECIMAL_PLACE,
-            name: "Aiken Course 2026",
-        });
-        await meshTxBuilder.initalize();
-
-        const unsignedTx: string = await meshTxBuilder.signature();
-
-        const signedTx = await meshWallet.signTx(unsignedTx, true);
-        const txHash = await meshWallet.submitTx(signedTx);
-        await new Promise<void>(function (resolve) {
-            blockfrostProvider.onTxConfirmed(txHash, () => {
-                console.log("https://" + APP_NETWORK + ".cexplorer.io/tx/" + txHash);
-                resolve();
-            });
-        });
-    });
-
-    test("Execute", async function () {
-        return;
-        const meshTxBuilder: MeshTxBuilder = new MeshTxBuilder({
-            meshWallet: meshWallet,
-            threshold: 2,
-            allowance: 20 * DECIMAL_PLACE,
-            name: "Aiken Course 2026",
-        });
-
-        await meshTxBuilder.initalize();
-        const unsignedTx: string = await meshTxBuilder.execute({
-            amount: String(20 * DECIMAL_PLACE),
-        });
-
-        const signedTx = await meshWallet.signTx(unsignedTx, true);
-        const txHash = await meshWallet.submitTx(signedTx);
-        await new Promise<void>(function (resolve) {
-            blockfrostProvider.onTxConfirmed(txHash, () => {
-                console.log("https://" + APP_NETWORK + ".cexplorer.io/tx/" + txHash);
-                resolve();
-            });
-        });
-    });
-
-    test("End", async function () {
+    test("Fund", async function () {
         // return;
         const meshTxBuilder: MeshTxBuilder = new MeshTxBuilder({
             meshWallet: meshWallet,
-            threshold: 2,
-            allowance: 20 * DECIMAL_PLACE,
             name: "Aiken Course 2026",
+            issuer: "addr_test1qz45qtdupp8g30lzzr684m8mc278s284cjvawna5ypwkvq7s8xszw9mgmwpxdyakl7dgpfmzywctzlsaghnqrl494wnqhgsy3g",
         });
 
         await meshTxBuilder.initalize();
 
-        const unsignedTx: string = await meshTxBuilder.end();
+        const unsignedTx: string = await meshTxBuilder.fund({
+            quantity: 5 * DECIMAL_PLACE,
+            borrower: "addr_test1qz45qtdupp8g30lzzr684m8mc278s284cjvawna5ypwkvq7s8xszw9mgmwpxdyakl7dgpfmzywctzlsaghnqrl494wnqhgsy3g",
+            principal: 10 * DECIMAL_PLACE,
+            interestRate: 500,
+            loanDuration: 60 * 60 * 1000,
+            dueDuration: 5,
+        });
 
         const signedTx = await meshWallet.signTx(unsignedTx, true);
+
         const txHash = await meshWallet.submitTx(signedTx);
         await new Promise<void>(function (resolve) {
             blockfrostProvider.onTxConfirmed(txHash, () => {
@@ -149,5 +86,17 @@ describe("A multisig treasury is a shared fund where spending requires approval 
                 resolve();
             });
         });
+    });
+
+    test("Repay", async function () {
+        return;
+    });
+
+    test("Cancel", async function () {
+        return;
+    });
+
+    test("Liquidate", async function () {
+        return;
     });
 });

@@ -13,6 +13,7 @@ import {
     serializeAddressObj,
     serializePlutusScript,
     UTxO,
+    stringToHex,
 } from "@meshsdk/core";
 import { blockfrostProvider } from "../providers/cardano/blockfrost";
 import plutus from "../libs/plutus.json";
@@ -56,7 +57,7 @@ export class MeshAdapter {
      *
      * @param {MeshWallet} meshWallet - Active Mesh wallet instance to connect.
      */
-    constructor({ meshWallet = null!, issuer, name }: { meshWallet: MeshWallet,issuer?: string, name: string }) {
+    constructor({ meshWallet = null!, issuer, name }: { meshWallet: MeshWallet; issuer?: string; name: string }) {
         this.meshWallet = meshWallet;
         this.fetcher = blockfrostProvider;
 
@@ -79,7 +80,11 @@ export class MeshAdapter {
         );
 
         this.mintCompileCode = this.readValidator(plutus as Plutus, title.identity);
-        this.mintScriptCbor = applyParamsToScript(this.mintCompileCode, [mPubKeyAddress(deserializeAddress(this.issuer!).pubKeyHash, deserializeAddress(this.issuer!).stakeCredentialHash)], "Mesh");
+        this.mintScriptCbor = applyParamsToScript(
+            this.mintCompileCode,
+            [mPubKeyAddress(deserializeAddress(this.issuer!).pubKeyHash, deserializeAddress(this.issuer!).stakeCredentialHash)],
+            "Mesh",
+        );
         this.mintScript = {
             code: this.mintScriptCbor,
             version: "V3",
@@ -88,8 +93,6 @@ export class MeshAdapter {
     }
 
     public initalize = async (): Promise<void> => {
-        
-
         this.meshTxBuilder = new MeshTxBuilder({
             fetcher: this.fetcher,
             evaluator: blockfrostProvider,
@@ -235,12 +238,23 @@ export class MeshAdapter {
     }: {
         plutusData: string;
     }): {
-        receiver: string;
-        owners: string[];
-        signers: string[];
+        borrower: string;
+        lender: string;
+        principal: number;
+        interestRate: number;
+        loanDuration: number;
+        dueDuration: number;
+        dueDate?: number;
+        policyId: string;
+        assetName: string;
+        status: {
+            type: "Active" | "Pending";
+            fundedAt: number | undefined;
+        };
     } => {
         try {
             const datum = deserializeDatum(plutusData);
+            console.dir(datum, { depth: null });
 
             const buildAddress = (paymentHex: string, stakeHex?: string): string => {
                 if (typeof paymentHex !== "string" || paymentHex.length !== 56) {
@@ -251,41 +265,33 @@ export class MeshAdapter {
                 }
                 return serializeAddressObj(pubKeyAddress(paymentHex, stakeHex || "", false), APP_NETWORK_ID);
             };
+            const borrower = buildAddress(datum.fields[0].fields[0].fields[0].bytes, datum.fields[0].fields[1].fields[0].fields[0].fields[0].bytes);
+            const lender =
+                datum.fields[1].fields > 0
+                    ? buildAddress(datum.fields[1].fields[0].fields[0].bytes, datum.fields[1].fields[1].fields[0].fields[0].fields[0].bytes)
+                    : "";
 
-            const receiverPayment = datum.fields?.[0]?.fields?.[0]?.fields?.[0]?.bytes;
-            const receiverStake = datum.fields?.[0]?.fields?.[1]?.fields?.[0]?.fields?.[0]?.fields?.[0]?.bytes;
-
-            if (!receiverPayment) {
-                throw new Error("Missing receiver payment credential.");
-            }
-
-            const receiver = buildAddress(receiverPayment, receiverStake);
-
-            const ownersList = datum.fields?.[1]?.list || [];
-            const owners = ownersList.map((item: any, index: number) => {
-                const payment = item?.fields?.[0]?.fields?.[0]?.bytes;
-                const stake = item?.fields?.[1]?.fields?.[0]?.fields?.[0]?.fields?.[0]?.bytes;
-
-                if (!payment) {
-                    throw new Error(`Owner #${index + 1} missing payment.`);
-                }
-
-                return buildAddress(payment, stake);
-            });
-
-            const signersList = datum.fields?.[2]?.list || [];
-            const signers = signersList.map((item: any, index: number) => {
-                const payment = item?.fields?.[0]?.fields?.[0]?.bytes;
-                const stake = item?.fields?.[1]?.fields?.[0]?.fields?.[0]?.fields?.[0]?.bytes;
-
-                if (!payment) {
-                    throw new Error(`Signer #${index + 1} missing payment.`);
-                }
-
-                return buildAddress(payment, stake);
-            });
-
-            return { receiver, owners, signers };
+            return {
+                borrower,
+                lender,
+                principal: Number(datum.fields[2].int),
+                interestRate: Number(datum.fields[3].int),
+                loanDuration: Number(datum.fields[4].int),
+                dueDuration: Number(datum.fields[5].int),
+                dueDate: datum.fields[6].fields.length > 0 ? Number(datum.fields[6].fields[0].int) : 0,
+                policyId: this.policyId,
+                assetName: stringToHex(this.name),
+                status:
+                    datum.fields[9].fields.length > 0
+                        ? {
+                              type: "Active",
+                              fundedAt: Number(datum.fields[9].fields[0].int),
+                          }
+                        : {
+                              type: "Pending",
+                              fundedAt: undefined,
+                          },
+            };
         } catch (err) {
             throw new Error(`Invalid Plutus datum: ${err instanceof Error ? err.message : String(err)}`);
         }
