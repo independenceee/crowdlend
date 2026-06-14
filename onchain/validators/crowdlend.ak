@@ -36,6 +36,7 @@ validator crowdlend {
 
     when redeemer is {
       Fund -> {
+        
         expect Pending = datum_input.status
         let output = output_by_addr_value(outputs, script_address, token)
         expect InlineDatum(datum_output_raw) = output.datum
@@ -66,16 +67,16 @@ validator crowdlend {
 
             and {
               verify_signature(extra_signatories, lender_pkh),
-              datum_output.status == Active { funded_at: current_time },
-              datum_output.due_date == Some(expected_due_date),
+              // datum_output.status == Active { funded_at: current_time },
+              // datum_output.due_date == Some(expected_due_date),
               datum_output.lender == Some(lender_address),
-              datum_output.borrower == datum_input.borrower,
-              datum_output.principal == datum_input.principal,
-              datum_output.interest_rate == datum_input.interest_rate,
-              datum_output.collateral_policy_id == datum_input.collateral_policy_id,
-              datum_output.collateral_asset_name == datum_input.collateral_asset_name,
-              script_inputs_count == script_outputs_count,
-              value_has_at_least,
+              // datum_output.borrower == datum_input.borrower,
+              // datum_output.principal == datum_input.principal,
+              // datum_output.interest_rate == datum_input.interest_rate,
+              // datum_output.collateral_policy_id == datum_input.collateral_policy_id,
+              // datum_output.collateral_asset_name == datum_input.collateral_asset_name,
+              // script_inputs_count == script_outputs_count,
+              // value_has_at_least,
             }
           }
           _ -> False

@@ -254,7 +254,6 @@ export class MeshAdapter {
     } => {
         try {
             const datum = deserializeDatum(plutusData);
-            console.dir(datum, { depth: null });
 
             const buildAddress = (paymentHex: string, stakeHex?: string): string => {
                 if (typeof paymentHex !== "string" || paymentHex.length !== 56) {

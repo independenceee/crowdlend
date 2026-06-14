@@ -5,7 +5,6 @@ import { deserializeAddress, mConStr0, mConStr1, mConStr2, stringToHex, mPubKeyA
 
 export class MeshTxBuilder extends MeshAdapter {
     create = async ({
-        quantity,
         borrower,
         lender,
         principal,
@@ -14,7 +13,6 @@ export class MeshTxBuilder extends MeshAdapter {
         dueDuration,
         dueDate,
     }: {
-        quantity: number;
         borrower: string;
         lender?: string;
         principal: number;
@@ -43,7 +41,7 @@ export class MeshTxBuilder extends MeshAdapter {
                     },
                     {
                         unit: "lovelace",
-                        quantity: String(quantity),
+                        quantity: String(5 * DECIMAL_PLACE),
                     },
                 ])
 
@@ -89,10 +87,11 @@ export class MeshTxBuilder extends MeshAdapter {
             throw new Error("The loan is not in 'Pending' status and cannot be funded.");
         }
 
-        const validFromSlot = Number(resolveSlotNo("preview", Date.now())) - 200;
-        const validToSlot = Number(resolveSlotNo("preview", Date.now())) + 1000;
+        const currentTimeMs = Date.now();
+        const validFromSlot = Number(resolveSlotNo(APP_NETWORK, currentTimeMs)) - 60;
+        const validToSlot = Number(resolveSlotNo(APP_NETWORK, currentTimeMs)) + 600;
 
-        const validFromPosixMs = Date.now() - 200 * 1000;
+        const validFromPosixMs = currentTimeMs - 60 * 1000;
         const dueDatePosixMs = validFromPosixMs + datum.loanDuration;
 
         const unsignedTx = this.meshTxBuilder;
@@ -103,10 +102,16 @@ export class MeshTxBuilder extends MeshAdapter {
             .txInInlineDatumPresent()
             .txInRedeemerValue(mConStr0([]))
             .txInScript(this.spendScriptCbor)
+            .txOut(datum.borrower, [
+                {
+                    unit: "lovelace",
+                    quantity: String(datum.principal),
+                }
+            ])
             .txOut(this.spendAddress, [
                 {
                     unit: "lovelace",
-                    quantity: String(datum.principal + 5 * DECIMAL_PLACE),
+                    quantity: String(5 * DECIMAL_PLACE),
                 },
                 {
                     unit: this.policyId + stringToHex(this.name),
@@ -161,10 +166,10 @@ export class MeshTxBuilder extends MeshAdapter {
         const unsignedTx = this.meshTxBuilder;
 
         unsignedTx
-            .mintPlutusScriptV3()
-            .mint("-1", this.policyId, stringToHex(this.name))
-            .mintingScript(this.mintScriptCbor)
-            .mintRedeemerValue(mConStr0([]))
+            // .mintPlutusScriptV3()
+            // .mint("-1", this.policyId, stringToHex(this.name))
+            // .mintingScript(this.mintScriptCbor)
+            // .mintRedeemerValue(mConStr0([]))
 
             .spendingPlutusScriptV3()
             .txIn(utxo.input.txHash, utxo.input.outputIndex)
@@ -211,10 +216,18 @@ export class MeshTxBuilder extends MeshAdapter {
         if (walletAddress !== datum.borrower || datum.status.type !== "Pending") {
             throw new Error("Only the borrower can cancel the loan. Additionally, the loan must be in 'Pending' status to be cancelled.");
         }
+        const nowMs = Date.now();
+        const validFromSlot = Number(resolveSlotNo(APP_NETWORK, nowMs)) - 200;
+        const validToSlot = Number(resolveSlotNo(APP_NETWORK, nowMs)) + 1000;
 
         const unsignedTx = this.meshTxBuilder;
 
         unsignedTx
+            // .mintPlutusScriptV3()
+            // .mint("-1", this.policyId, stringToHex(this.name))
+            // .mintingScript(this.mintScriptCbor)
+            // .mintRedeemerValue(mConStr0([]))
+
             .spendingPlutusScriptV3()
             .txIn(utxo.input.txHash, utxo.input.outputIndex)
             .txInInlineDatumPresent()
@@ -230,7 +243,8 @@ export class MeshTxBuilder extends MeshAdapter {
                     quantity: "1",
                 },
             ])
-            .invalidBefore(0);
+            .invalidBefore(validFromSlot)
+            .invalidHereafter(validToSlot);
 
         unsignedTx
             .selectUtxosFrom(utxos)
