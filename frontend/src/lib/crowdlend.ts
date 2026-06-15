@@ -1,8 +1,3 @@
-/**
- * Frontend-compatible lending functions
- * Wrapper cho browser wallet (BrowserWallet) thay vì MeshWallet
- */
-
 import { MeshTxBuilder, BlockfrostProvider } from "@meshsdk/core";
 import { resolveSlotNo } from "@meshsdk/common";
 import {

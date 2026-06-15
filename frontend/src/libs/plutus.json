@@ -308,10 +308,6 @@
                             "$ref": "#/definitions/Int"
                         },
                         {
-                            "title": "due_duration",
-                            "$ref": "#/definitions/Int"
-                        },
-                        {
                             "title": "due_date",
                             "$ref": "#/definitions/Option<Int>"
                         },

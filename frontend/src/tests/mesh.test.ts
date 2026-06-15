@@ -44,7 +44,6 @@ describe("CrowdFund is a decentralized crowdfunding platform on Cardano that ena
             principal: 10 * DECIMAL_PLACE,
             interestRate: 500,
             loanDuration: 60 * 60 * 1000,
-            dueDuration: 5,
         });
 
         const signedTx = await meshWallet.signTx(unsignedTx, true);
@@ -82,7 +81,7 @@ describe("CrowdFund is a decentralized crowdfunding platform on Cardano that ena
     });
 
     test("Fund", async function () {
-        return;
+        // return;
         const meshTxBuilder: MeshTxBuilder = new MeshTxBuilder({
             meshWallet: meshWallet,
             name: name,

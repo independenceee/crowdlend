@@ -9,14 +9,12 @@ export class MeshTxBuilder extends MeshAdapter {
         principal,
         interestRate,
         loanDuration,
-        dueDuration,
         dueDate,
     }: {
         borrower: string;
         principal: number;
         interestRate: number;
         loanDuration: number;
-        dueDuration: number;
         dueDate?: number;
     }) => {
         const { utxos, collateral, walletAddress } = await this.getWalletForTx();
@@ -46,11 +44,10 @@ export class MeshTxBuilder extends MeshAdapter {
                 .txOutInlineDatumValue(
                     mConStr0([
                         mPubKeyAddress(deserializeAddress(borrower).pubKeyHash, deserializeAddress(borrower).stakeCredentialHash),
-                        mPubKeyAddress("", ""),
+                        mConStr0([mPubKeyAddress("", "")]),
                         principal,
                         interestRate,
                         loanDuration,
-                        dueDuration,
                         dueDate ? mConStr0([dueDate]) : mConStr0([]),
                         this.policyId,
                         stringToHex(this.name),
@@ -80,6 +77,7 @@ export class MeshTxBuilder extends MeshAdapter {
         }
 
         const datum = this.convertDatum({ plutusData: utxo.output.plutusData! });
+        console.log(datum)
 
         if (datum.status.type !== "Pending") {
             throw new Error("The loan is not in 'Pending' status and cannot be funded.");
@@ -117,7 +115,6 @@ export class MeshTxBuilder extends MeshAdapter {
                     datum.principal,
                     datum.interestRate,
                     datum.loanDuration,
-                    datum.dueDuration,
                     mConStr0([dueDatePosixMs]),
                     this.policyId,
                     stringToHex(this.name),

@@ -12,7 +12,6 @@ pub type Datum {
   principal: Int,
   interest_rate: Int,
   loan_duration: Int,
-  due_duration: Int,
   due_date: Option<Int>,
   collateral_policy_id: PolicyId,
   collateral_asset_name: AssetName,
