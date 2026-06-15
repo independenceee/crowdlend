@@ -77,7 +77,7 @@ export class MeshTxBuilder extends MeshAdapter {
         }
 
         const datum = this.convertDatum({ plutusData: utxo.output.plutusData! });
-        console.log(datum)
+        console.log(datum);
 
         if (datum.status.type !== "Pending") {
             throw new Error("The loan is not in 'Pending' status and cannot be funded.");

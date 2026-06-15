@@ -13,7 +13,7 @@ import {
     serializeAddressObj,
     serializePlutusScript,
     UTxO,
-    stringToHex,
+    hexToString,
 } from "@meshsdk/core";
 import { blockfrostProvider } from "../providers/cardano/blockfrost";
 import plutus from "../libs/plutus.json";
@@ -253,6 +253,7 @@ export class MeshAdapter {
     } => {
         try {
             const datum = deserializeDatum(plutusData);
+            // console.dir(datum, {depth: null})
 
             const buildAddress = (paymentHex: string, stakeHex?: string): string => {
                 if (typeof paymentHex !== "string" || paymentHex.length !== 56) {
@@ -289,8 +290,8 @@ export class MeshAdapter {
                 interestRate: Number(datum.fields[3].int),
                 loanDuration: Number(datum.fields[4].int),
                 dueDate: datum.fields[5].fields.length > 0 ? Number(datum.fields[6].fields[0].int) : 0,
-                policyId: this.policyId,
-                assetName: stringToHex(this.name),
+                policyId: String(datum.fields[6].bytes),
+                assetName: hexToString(datum.fields[7].bytes),
                 status:
                     datum.fields[8].fields.length > 0
                         ? {

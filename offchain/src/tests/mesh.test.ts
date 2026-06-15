@@ -30,7 +30,7 @@ describe("CrowdFund is a decentralized crowdfunding platform on Cardano that ena
     jest.setTimeout(600000000);
 
     test("Create", async function () {
-        // return;
+        return;
         const meshTxBuilder: MeshTxBuilder = new MeshTxBuilder({
             meshWallet: meshWallet,
             name: name,
@@ -44,7 +44,6 @@ describe("CrowdFund is a decentralized crowdfunding platform on Cardano that ena
             principal: 10 * DECIMAL_PLACE,
             interestRate: 500,
             loanDuration: 60 * 60 * 1000,
-            dueDuration: 5,
         });
 
         const signedTx = await meshWallet.signTx(unsignedTx, true);

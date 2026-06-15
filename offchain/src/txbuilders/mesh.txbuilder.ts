@@ -9,14 +9,12 @@ export class MeshTxBuilder extends MeshAdapter {
         principal,
         interestRate,
         loanDuration,
-        dueDuration,
         dueDate,
     }: {
         borrower: string;
         principal: number;
         interestRate: number;
         loanDuration: number;
-        dueDuration: number;
         dueDate?: number;
     }) => {
         const { utxos, collateral, walletAddress } = await this.getWalletForTx();
@@ -50,7 +48,7 @@ export class MeshTxBuilder extends MeshAdapter {
                         principal,
                         interestRate,
                         loanDuration,
-                        dueDuration,
+
                         dueDate ? mConStr0([dueDate]) : mConStr0([]),
                         this.policyId,
                         stringToHex(this.name),
@@ -117,7 +115,6 @@ export class MeshTxBuilder extends MeshAdapter {
                     datum.principal,
                     datum.interestRate,
                     datum.loanDuration,
-                    datum.dueDuration,
                     mConStr0([dueDatePosixMs]),
                     this.policyId,
                     stringToHex(this.name),

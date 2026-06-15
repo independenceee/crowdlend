@@ -1,38 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useWallet } from "@/context/WalletContext";
-import { createLoan, getNftPolicyId } from "@/lib/crowdlend";
+import { create, getPolicyId } from "@/actions/crowdlend";
+import { DECIMAL_PLACE } from "@/constants/common";
 
 interface Props {
     onTxSuccess: (txHash: string) => void;
 }
 
 export default function CreateLoanPanel({ onTxSuccess }: Props) {
-    const { wallet, address, pkh } = useWallet();
+    const { wallet, address } = useWallet();
     const [principal, setPrincipal] = useState("10");
     const [interestRate, setInterestRate] = useState("500");
-    const [durationHours, setDurationHours] = useState("24");
-    const [nftPolicyId, setNftPolicyId] = useState("");
-    const [nftAssetName, setNftAssetName] = useState("");
+    const [loanDuration, setLoanDuration] = useState("24");
+    const [assetName, setAssetName] = useState("");
+    const [policyId, setPolicyId] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    useEffect(() => {
+        (async () => {
+            setPolicyId(await getPolicyId({ address: address as string }));
+        })();
+    }, [address, wallet]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!wallet || !pkh) return;
+        if (!wallet) return;
         setLoading(true);
         setError(null);
         try {
-            const assetNameHex = nftAssetName.startsWith("0x") ? nftAssetName.slice(2) : Buffer.from(nftAssetName).toString("hex");
-
-            const txHash = await createLoan(wallet, {
-                principal: Math.round(parseFloat(principal) * 1_000_000),
-                interestRate: parseInt(interestRate),
-                loanDuration: parseInt(durationHours) * 60 * 60 * 1000,
-                collateralPolicyId: nftPolicyId,
-                collateralAssetName: assetNameHex,
+            const unsignedTx = await create({
+                address: address as string,
+                name: assetName,
+                principal: Number(principal) * DECIMAL_PLACE,
+                interestRate: Number(interestRate),
+                loanDuration: Number(loanDuration) * 60 * 60 * 1000,
             });
+
+            const signedTx = await wallet.signTx(unsignedTx, true);
+            const txHash = await wallet.submitTx(signedTx);
             onTxSuccess(txHash);
         } catch (err: any) {
             setError(err?.message ?? "Transaction failed");
@@ -99,8 +107,8 @@ export default function CreateLoanPanel({ onTxSuccess }: Props) {
                         className="input-field"
                         type="number"
                         min="1"
-                        value={durationHours}
-                        onChange={(e) => setDurationHours(e.target.value)}
+                        value={loanDuration}
+                        onChange={(e) => setLoanDuration(e.target.value)}
                         placeholder="24"
                         required
                     />
@@ -111,9 +119,9 @@ export default function CreateLoanPanel({ onTxSuccess }: Props) {
                     <input
                         className="input-field"
                         type="text"
-                        value={nftPolicyId}
-                        onChange={(e) => setNftPolicyId(e.target.value)}
-                        placeholder="Policy ID hex (64 chars)"
+                        value={policyId}
+                        onChange={(e) => setPolicyId(e.target.value)}
+                        placeholder="e.g. 4agebv...afdtsvg"
                         required
                     />
                 </div>
@@ -123,9 +131,9 @@ export default function CreateLoanPanel({ onTxSuccess }: Props) {
                     <input
                         className="input-field"
                         type="text"
-                        value={nftAssetName}
-                        onChange={(e) => setNftAssetName(e.target.value)}
-                        placeholder="e.g. CollateralNFT"
+                        value={assetName}
+                        onChange={(e) => setAssetName(e.target.value)}
+                        placeholder="e.g. Hydra Course 2026"
                         required
                     />
                 </div>

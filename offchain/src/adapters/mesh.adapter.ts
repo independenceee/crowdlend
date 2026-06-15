@@ -243,7 +243,6 @@ export class MeshAdapter {
         principal: number;
         interestRate: number;
         loanDuration: number;
-        dueDuration: number;
         dueDate?: number;
         policyId: string;
         assetName: string;
@@ -289,8 +288,7 @@ export class MeshAdapter {
                 principal: Number(datum.fields[2].int),
                 interestRate: Number(datum.fields[3].int),
                 loanDuration: Number(datum.fields[4].int),
-                dueDuration: Number(datum.fields[5].int),
-                dueDate: datum.fields[6].fields.length > 0 ? Number(datum.fields[6].fields[0].int) : 0,
+                dueDate: datum.fields[5].fields.length > 0 ? Number(datum.fields[5].fields[0].int) : 0,
                 policyId: this.policyId,
                 assetName: stringToHex(this.name),
                 status:
