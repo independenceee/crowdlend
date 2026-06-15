@@ -150,6 +150,7 @@ export class MeshTxBuilder extends MeshAdapter {
         }
 
         const datum = this.convertDatum({ plutusData: utxo.output.plutusData! });
+        console.log(datum)
 
         const lenderAddress = datum.lender;
 
