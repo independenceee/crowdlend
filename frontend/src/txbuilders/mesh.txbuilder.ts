@@ -150,7 +150,7 @@ export class MeshTxBuilder extends MeshAdapter {
         }
 
         const datum = this.convertDatum({ plutusData: utxo.output.plutusData! });
-        console.log(datum)
+        console.log(datum);
 
         const lenderAddress = datum.lender;
 
@@ -272,6 +272,9 @@ export class MeshTxBuilder extends MeshAdapter {
         const datum = this.convertDatum({ plutusData: utxo.output.plutusData! });
 
         const lenderAddress = datum.lender;
+
+        console.log(new Date(Date.now()).toLocaleString());
+        console.log(new Date(datum.dueDate as number).toLocaleString());
 
         if (walletAddress !== lenderAddress || Date.now() <= datum.dueDate!) {
             throw new Error("Only the lender can liquidate the loan, and liquidation can only occur after the due date.");

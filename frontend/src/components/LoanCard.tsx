@@ -30,7 +30,7 @@ export default function LoanCard({ loan, onTxSuccess, onRefresh }: Props) {
     const { wallet, address } = useWallet();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    console.log(loan)
+    console.log(loan);
 
     const principalAda = loan.principal / 1_000_000;
     const interest = Math.floor((loan.principal * loan.interestRate) / 10000);
@@ -123,8 +123,7 @@ export default function LoanCard({ loan, onTxSuccess, onRefresh }: Props) {
                 {loan.dueDate && (
                     <div className="flex justify-between">
                         <span>Deadline</span>
-                        {/* due_date is slot number → convert to ms: (slot * 1000) + preprodZeroTime */}
-                        <span>{new Date(loan.dueDate * 1000 + 1666656000000).toLocaleString()}</span>
+                        <span>{new Date(Number(loan.dueDate)).toLocaleString("vi-VN", { hour12: false })}</span>
                     </div>
                 )}
                 <div className="flex justify-between">

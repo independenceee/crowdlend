@@ -127,7 +127,7 @@ describe("CrowdFund is a decentralized crowdfunding platform on Cardano that ena
     });
 
     test("Liquidate", async function () {
-        return;
+        // return;
         const meshTxBuilder: MeshTxBuilder = new MeshTxBuilder({
             meshWallet: meshWallet,
             name: name,
