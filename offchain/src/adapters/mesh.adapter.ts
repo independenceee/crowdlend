@@ -265,10 +265,23 @@ export class MeshAdapter {
                 return serializeAddressObj(pubKeyAddress(paymentHex, stakeHex || "", false), APP_NETWORK_ID);
             };
             const borrower = buildAddress(datum.fields[0].fields[0].fields[0].bytes, datum.fields[0].fields[1].fields[0].fields[0].fields[0].bytes);
-            const lender =
-                datum.fields[1].fields > 0
-                    ? buildAddress(datum.fields[1].fields[0].fields[0].bytes, datum.fields[1].fields[1].fields[0].fields[0].fields[0].bytes)
-                    : "";
+            let lender = "";
+
+            if (datum.fields[1] && datum.fields[1].fields && datum.fields[1].fields.length > 0) {
+                try {
+                    const lenderFields = datum.fields[1].fields[0];
+                    if (lenderFields && lenderFields.fields && lenderFields.fields.length >= 2) {
+                        const paymentHex = lenderFields.fields[0]?.fields?.[0]?.bytes;
+                        const stakeHex = lenderFields.fields[1]?.fields?.[0]?.fields?.[0]?.fields?.[0]?.bytes;
+
+                        if (paymentHex) {
+                            lender = buildAddress(paymentHex, stakeHex || "");
+                        }
+                    }
+                } catch (e) {
+                    lender = "";
+                }
+            }
 
             return {
                 borrower,

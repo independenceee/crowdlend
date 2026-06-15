@@ -5,7 +5,7 @@ import { APP_MNEMONIC, APP_NETWORK, APP_NETWORK_ID } from "../constants/envirome
 import { DECIMAL_PLACE } from "../constants/common";
 
 describe("CrowdFund is a decentralized crowdfunding platform on Cardano that enables secure donations, transparent fund management, and trustless fundraising through smart contracts.", function () {
-    let name = "5";
+    let name = "6";
     let meshWallet: MeshWallet;
 
     // account 0 - addr_test1qz45qtdupp8g30lzzr684m8mc278s284cjvawna5ypwkvq7s8xszw9mgmwpxdyakl7dgpfmzywctzlsaghnqrl494wnqhgsy3g
@@ -59,7 +59,7 @@ describe("CrowdFund is a decentralized crowdfunding platform on Cardano that ena
     });
 
     test("Cancel", async function () {
-        return;
+        // return;
         const meshTxBuilder: MeshTxBuilder = new MeshTxBuilder({
             meshWallet: meshWallet,
             name: name,
@@ -82,7 +82,7 @@ describe("CrowdFund is a decentralized crowdfunding platform on Cardano that ena
     });
 
     test("Fund", async function () {
-        // return;
+        return;
         const meshTxBuilder: MeshTxBuilder = new MeshTxBuilder({
             meshWallet: meshWallet,
             name: name,
