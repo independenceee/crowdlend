@@ -2,8 +2,8 @@ use aiken/collection/list
 use aiken/interval.{Finite}
 use cardano/address.{Address, VerificationKey}
 use cardano/assets.{
-  PolicyId, flatten, from_asset, quantity_of,
-  without_lovelace, lovelace_of
+  PolicyId, flatten, from_asset, from_lovelace, merge, quantity_of,
+  without_lovelace,
 }
 use cardano/transaction.{
   InlineDatum, Output, OutputReference, Transaction, find_input,
@@ -42,19 +42,21 @@ validator crowdlend {
         expect datum_output: Datum = datum_output_raw
         expect Some(lender_address) = datum_output.lender
         expect VerificationKey(lender_pkh) = lender_address.payment_credential
-
         when validity_range.lower_bound.bound_type is {
           Finite(current_time) -> {
             let expected_due_date = current_time + datum_input.loan_duration
 
-            let min_locked = from_asset(
-              datum_input.collateral_policy_id,
-              datum_input.collateral_asset_name,
-              1,
+            let min_locked = merge(
+              from_lovelace(datum_input.principal),
+              from_asset(
+                datum_input.collateral_policy_id,
+                datum_input.collateral_asset_name,
+                1,
+              ),
             )
 
             let flat_min = flatten(min_locked)
-            let script_has_collateral = list.all(
+            let value_has_at_least = list.all(
               flat_min,
               fn(item) {
                 let (policy_id, asset_name, min_qty) = item
@@ -62,15 +64,10 @@ validator crowdlend {
               },
             )
 
-            // 2. Kiểm tra xem Borrower có thực sự nhận được tiền giải ngân (principal) trong Tx này không
-            let borrower_output = output_by_addr(outputs, datum_input.borrower)
-            let borrower_received_principal = lovelace_of(borrower_output.value) >= datum_input.principal
-            expect Some(out_due_date) = datum_output.due_date
             and {
               verify_signature(extra_signatories, lender_pkh),
               datum_output.status == Active { funded_at: current_time },
-              // Chỗ này cho phép sai số thời gian do Slot trượt (ví dụ: lệch trong khoảng 5000ms / 5s)
-              out_due_date - expected_due_date < 5000,
+              datum_output.due_date == Some(expected_due_date),
               datum_output.lender == Some(lender_address),
               datum_output.borrower == datum_input.borrower,
               datum_output.principal == datum_input.principal,
@@ -78,11 +75,9 @@ validator crowdlend {
               datum_output.collateral_policy_id == datum_input.collateral_policy_id,
               datum_output.collateral_asset_name == datum_input.collateral_asset_name,
               script_inputs_count == script_outputs_count,
-              script_has_collateral,
-              borrower_received_principal,
+              value_has_at_least,
             }
           }
-          // Ép buộc kiểm tra điều kiện này!
           _ -> False
         }
       }

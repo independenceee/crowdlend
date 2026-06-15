@@ -1,7 +1,7 @@
 import { MeshAdapter } from "../adapters/mesh.adapter";
 import { APP_NETWORK } from "../constants/enviroments";
 import { DECIMAL_PLACE } from "../constants/common";
-import { deserializeAddress, mConStr0, mConStr1, mConStr2, stringToHex, mPubKeyAddress, resolveSlotNo } from "@meshsdk/core";
+import { deserializeAddress, mConStr0, mConStr1, mConStr2, stringToHex, mPubKeyAddress, resolveSlotNo, mConStr3 } from "@meshsdk/core";
 
 export class MeshTxBuilder extends MeshAdapter {
     create = async ({
@@ -87,11 +87,10 @@ export class MeshTxBuilder extends MeshAdapter {
         }
 
         const currentTimeMs = Date.now();
-        const validFromSlot = Number(resolveSlotNo(APP_NETWORK, currentTimeMs)) - 60;
-        const validToSlot = Number(resolveSlotNo(APP_NETWORK, currentTimeMs)) + 600;
-
-        const validFromPosixMs = currentTimeMs - 60 * 1000;
-        const dueDatePosixMs = validFromPosixMs + datum.loanDuration;
+        const currentSlot = Number(resolveSlotNo(APP_NETWORK, currentTimeMs));
+        const validFromSlot = currentSlot - 900;
+        const validToSlot = currentSlot + 1800;
+        const dueDatePosixMs = currentTimeMs + datum.loanDuration;
 
         const unsignedTx = this.meshTxBuilder;
 
@@ -123,7 +122,7 @@ export class MeshTxBuilder extends MeshAdapter {
                     mConStr0([dueDatePosixMs]),
                     this.policyId,
                     stringToHex(this.name),
-                    mConStr1([validFromPosixMs]),
+                    mConStr1([currentTimeMs]),
                 ]),
             )
 
@@ -148,50 +147,58 @@ export class MeshTxBuilder extends MeshAdapter {
 
     repay = async () => {
         const { utxos, collateral, walletAddress } = await this.getWalletForTx();
-        // const utxo = await this.getAddressUTXOAsset(this.spendAddress, this.policyId + stringToHex(this.name));
-        const utxo = await this.getAddressUTXOAsset(walletAddress, this.policyId + stringToHex(this.name));
+        const utxo = await this.getAddressUTXOAsset(this.spendAddress, this.policyId + stringToHex(this.name));
 
         if (!utxo) {
             throw new Error("No UTxO found for the specified asset. Please ensure the loan has been created before repayment.");
         }
 
-        // const datum = this.convertDatum({ plutusData: utxo.output.plutusData! });
+        const datum = this.convertDatum({ plutusData: utxo.output.plutusData! });
 
-        // if (walletAddress !== datum.borrower || datum.status.type !== "Active" || !datum.lender || !datum.dueDate) {
-        //     throw new Error(
-        //         "Only the borrower can repay the loan. Additionally, the loan must be in 'Active' status with a valid lender and due date to be repaid.",
-        //     );
-        // }
+        const lenderAddress = datum.lender;
 
+        if (walletAddress !== datum.borrower || datum.status.type !== "Active" || !lenderAddress || !datum.dueDate) {
+            throw new Error(
+                "Only the borrower can repay the loan. Additionally, the loan must be in 'Active' status with a valid lender and due date to be repaid.",
+            );
+        }
+
+        const currentTimeMs = Date.now();
+        const currentSlot = Number(resolveSlotNo(APP_NETWORK, currentTimeMs));
+
+        const validFromSlot = currentSlot - 900;
+        const validToSlot = currentSlot + 1800;
         const unsignedTx = this.meshTxBuilder;
 
+        const interest = Math.floor((datum.principal * datum.interestRate) / 10000);
+        const totalRepayment = datum.principal + interest;
+
         unsignedTx
-            .mintPlutusScriptV3()
-            .mint("-1", this.policyId, stringToHex(this.name))
-            .mintingScript(this.mintScriptCbor)
-            .mintRedeemerValue(mConStr0([]));
+            .spendingPlutusScriptV3()
+            .txIn(utxo.input.txHash, utxo.input.outputIndex)
+            .txInInlineDatumPresent()
+            .txInRedeemerValue(mConStr1([]))
+            .txInScript(this.spendScriptCbor)
 
-        // .spendingPlutusScriptV3()
-        // .txIn(utxo.input.txHash, utxo.input.outputIndex)
-        // .txInInlineDatumPresent()
-        // .txInRedeemerValue(mConStr2([]))
-        // .txInScript(this.spendScriptCbor)
+            .txOut(lenderAddress, [
+                {
+                    unit: "lovelace",
+                    quantity: String(totalRepayment),
+                },
+            ])
 
-        // .txOut(datum.lender, [
-        //     {
-        //         unit: "lovelace",
-        //         quantity: String(datum.principal + Math.floor((datum.principal * datum.interestRate) / 10000)),
-        //     },
-        // ])
-        // .txOut(walletAddress, [
-        //     {
-        //         unit: "lovelace",
-        //         quantity: String(5 * DECIMAL_PLACE),
-        //     },
-        // ])
-
-        // .invalidBefore(0)
-        // .invalidHereafter(0);
+            .txOut(walletAddress, [
+                {
+                    unit: "lovelace",
+                    quantity: String(5 * DECIMAL_PLACE),
+                },
+                {
+                    unit: this.policyId + stringToHex(this.name),
+                    quantity: "1",
+                },
+            ])
+            .invalidBefore(validFromSlot)
+            .invalidHereafter(validToSlot);
 
         unsignedTx
             .selectUtxosFrom(utxos)
@@ -267,9 +274,17 @@ export class MeshTxBuilder extends MeshAdapter {
 
         const datum = this.convertDatum({ plutusData: utxo.output.plutusData! });
 
-        if (walletAddress !== datum.lender || Date.now() <= datum.dueDate!) {
+        const lenderAddress = datum.lender;
+
+        if (walletAddress !== lenderAddress || Date.now() <= datum.dueDate!) {
             throw new Error("Only the lender can liquidate the loan, and liquidation can only occur after the due date.");
         }
+
+        const currentTimeMs = Date.now();
+        const currentSlot = Number(resolveSlotNo(APP_NETWORK, currentTimeMs));
+
+        const validFromSlot = currentSlot - 900;
+        const validToSlot = currentSlot + 1800;
 
         const unsignedTx = this.meshTxBuilder;
 
@@ -277,9 +292,10 @@ export class MeshTxBuilder extends MeshAdapter {
             .spendingPlutusScriptV3()
             .txIn(utxo.input.txHash, utxo.input.outputIndex)
             .txInInlineDatumPresent()
-            .txInRedeemerValue(mConStr0([]))
+            .txInRedeemerValue(mConStr3([]))
             .txInScript(this.spendScriptCbor)
-            .txOut(datum.lender, [
+
+            .txOut(lenderAddress, [
                 {
                     unit: "lovelace",
                     quantity: String(5 * DECIMAL_PLACE),
@@ -289,7 +305,8 @@ export class MeshTxBuilder extends MeshAdapter {
                     quantity: "1",
                 },
             ])
-            .invalidBefore(0);
+            .invalidBefore(validFromSlot)
+            .invalidHereafter(validToSlot);
 
         unsignedTx
             .selectUtxosFrom(utxos)
