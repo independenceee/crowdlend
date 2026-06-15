@@ -165,7 +165,7 @@ export const cancel = async ({ address, name }: { address: string; name: string 
     }
 };
 
-export const liquidate = async ({ address, name }: { address: string; name: string }) => {
+export const liquidate = async ({ address, name, borrower }: { address: string; name: string; borrower: string }) => {
     try {
         const meshWallet = new MeshWallet({
             accountIndex: 0,
@@ -181,7 +181,7 @@ export const liquidate = async ({ address, name }: { address: string; name: stri
         const meshTxBuilder: MeshTxBuilder = new MeshTxBuilder({
             meshWallet: meshWallet,
             name: name,
-            issuer: address,
+            issuer: borrower,
         });
         await meshTxBuilder.initalize();
 

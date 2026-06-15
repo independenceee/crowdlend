@@ -175,7 +175,7 @@ export default function LoanCard({ loan, onTxSuccess, onRefresh }: Props) {
                         <button
                             className="btn-primary flex-1 py-2 text-sm"
                             disabled={loading}
-                            onClick={() => exec(() => liquidate({ address: loan.borrower as string, name: loan.assetName }))}
+                            onClick={() => exec(() => liquidate({ address: address as string, name: loan.assetName, borrower: loan.borrower }))}
                             style={{ backgroundColor: "#ef4444" }}
                         >
                             {loading ? "..." : "Liquidate"}

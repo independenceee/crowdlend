@@ -276,6 +276,9 @@ export class MeshTxBuilder extends MeshAdapter {
         console.log(new Date(Date.now()).toLocaleString());
         console.log(new Date(datum.dueDate as number).toLocaleString());
 
+        console.log(walletAddress !== lenderAddress);
+        console.log(Date.now() <= datum.dueDate!);
+
         if (walletAddress !== lenderAddress || Date.now() <= datum.dueDate!) {
             throw new Error("Only the lender can liquidate the loan, and liquidation can only occur after the due date.");
         }
