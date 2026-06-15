@@ -38,8 +38,8 @@ export default function LoanCard({ loan, onTxSuccess, onRefresh }: Props) {
     const interestPct = (loan.interestRate / 100).toFixed(2);
     const durationH = Math.round(loan.loanDuration / 3600000);
 
-    const currentSlot = Number(resolveSlotNo(APP_NETWORK, Date.now()));
-    const isOverdue = loan.dueDate && currentSlot > loan.dueDate;
+    // const currentSlot = Number(resolveSlotNo(APP_NETWORK, Date.now()));
+    const isOverdue = loan.dueDate && Date.now() > loan.dueDate;
 
     const isBorrower = address === loan.borrower;
     const isLender = address === loan.lender;
