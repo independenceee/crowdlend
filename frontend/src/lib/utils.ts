@@ -21,6 +21,7 @@ export const convertDatum = ({
 } => {
     try {
         const datum = deserializeDatum(plutusData);
+        console.dir(datum, { depth: null });
 
         const buildAddress = (paymentHex: string, stakeHex?: string): string => {
             if (typeof paymentHex !== "string" || paymentHex.length !== 56) {
@@ -32,43 +33,49 @@ export const convertDatum = ({
             return serializeAddressObj(pubKeyAddress(paymentHex, stakeHex || "", false), APP_NETWORK_ID);
         };
         const borrower = buildAddress(datum.fields[0].fields[0].fields[0].bytes, datum.fields[0].fields[1].fields[0].fields[0].fields[0].bytes);
+
         let lender = "";
-
-        if (datum.fields[1] && datum.fields[1].fields && datum.fields[1].fields.length > 0) {
-            try {
-                const lenderFields = datum.fields[1].fields[0];
-                if (lenderFields && lenderFields.fields && lenderFields.fields.length >= 2) {
-                    const paymentHex = lenderFields.fields[0]?.fields?.[0]?.bytes;
-                    const stakeHex = lenderFields.fields[1]?.fields?.[0]?.fields?.[0]?.fields?.[0]?.bytes;
-
-                    if (paymentHex) {
-                        lender = buildAddress(paymentHex, stakeHex || "");
-                    }
-                }
-            } catch (e) {
-                lender = "";
-            }
+        const lenderOption = datum.fields?.[1];
+        if (lenderOption && lenderOption.constructor === 0 && lenderOption.fields?.[0]) {
+            const lenderAddressWrap = lenderOption.fields[0];
+            const lenderPayment = lenderAddressWrap.fields?.[0]?.fields?.[0]?.bytes;
+            const lenderStake = lenderAddressWrap.fields?.[1]?.fields?.[0]?.fields?.[0]?.fields?.[0]?.bytes;
+            lender = buildAddress(lenderPayment, lenderStake);
         }
+
+        const principal = Number(datum.fields?.[2]?.int || 0);
+        const interestRate = Number(datum.fields?.[3]?.int || 0);
+        const loanDuration = Number(datum.fields?.[4]?.int || 0);
+
+        const dueDateRaw = datum.fields?.[5];
+        const dueDate = dueDateRaw && dueDateRaw.constructor === 0 && dueDateRaw.fields?.[0] ? Number(dueDateRaw.fields[0].int) : undefined;
+
+        const policyId = String(datum.fields?.[6]?.bytes || "");
+
+        const assetName = datum.fields?.[7]?.bytes ? hexToString(datum.fields[7].bytes) : "";
+
+        const statusRaw = datum.fields?.[8];
+        const status =
+            statusRaw && statusRaw.constructor === 1 && statusRaw.fields?.[0]
+                ? {
+                      type: "Active" as const,
+                      fundedAt: Number(statusRaw.fields[0].int),
+                  }
+                : {
+                      type: "Pending" as const,
+                      fundedAt: undefined,
+                  };
 
         return {
             borrower,
             lender,
-            principal: Number(datum.fields[2].int),
-            interestRate: Number(datum.fields[3].int),
-            loanDuration: Number(datum.fields[4].int),
-            dueDate: datum.fields[5].fields.length > 0 ? Number(datum.fields[6].fields[0].int) : 0,
-            policyId: String(datum.fields[6].bytes),
-            assetName: hexToString(datum.fields[7].bytes),
-            status:
-                datum.fields[8].fields.length > 0
-                    ? {
-                          type: "Active",
-                          fundedAt: Number(datum.fields[9].fields[0].int),
-                      }
-                    : {
-                          type: "Pending",
-                          fundedAt: undefined,
-                      },
+            principal,
+            interestRate,
+            loanDuration,
+            dueDate,
+            policyId,
+            assetName,
+            status,
         };
     } catch (err) {
         throw new Error(`Invalid Plutus datum: ${err instanceof Error ? err.message : String(err)}`);

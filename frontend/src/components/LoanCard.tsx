@@ -30,6 +30,7 @@ export default function LoanCard({ loan, onTxSuccess, onRefresh }: Props) {
     const { wallet, address } = useWallet();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    console.log(loan)
 
     const principalAda = loan.principal / 1_000_000;
     const interest = Math.floor((loan.principal * loan.interestRate) / 10000);
@@ -143,13 +144,12 @@ export default function LoanCard({ loan, onTxSuccess, onRefresh }: Props) {
                         <button
                             className="btn-primary flex-1 py-2 text-sm"
                             disabled={loading}
-                            onClick={() => exec(() => fund({ address: loan.borrower as string, name: loan.assetName }))}
+                            onClick={() => exec(() => fund({ address: address as string, name: loan.assetName, borrower: loan.borrower }))}
                         >
                             {loading ? "..." : "Fund Loan"}
                         </button>
                     )}
 
-                    {/* Cancel: visible if Pending and is borrower */}
                     {loan.status.type === "Pending" && isBorrower && (
                         <button
                             className="btn-glass flex-1 py-2 text-sm"

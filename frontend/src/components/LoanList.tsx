@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { fetchLoans, type LoanUtxo } from "@/lib/crowdlend";
 import LoanCard from "./LoanCard";
 import { getLoans } from "@/actions/crowdlend";
 
@@ -52,6 +51,7 @@ export default function LoanListPanel({ onTxSuccess }: Props) {
 
     const pendingLoans = loans.filter((l) => l.status.type === "Pending");
     const activeLoans = loans.filter((l) => l.status.type === "Active");
+    console.log(activeLoans)
 
     return (
         <div className="space-y-8">
